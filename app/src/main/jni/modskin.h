@@ -129,10 +129,10 @@ bool  IsCanUseSkin  (void *instance, uint32_t heroId, uint32_t sId) {
 //  HOOK 3 – IsHaveHeroSkin  (luôn trả về true khi unlock)
 // ============================================================
 
-bool (*_IsHaveHeroSkin)(uint32_t, uint32_t, bool);
-bool  IsHaveHeroSkin  (uint32_t heroId, uint32_t sId, bool inclTimeLimited) {
+bool (*_IsHaveHeroSkin)(void *, uint32_t, uint32_t, bool);
+bool  IsHaveHeroSkin  (void *instance, uint32_t heroId, uint32_t sId, bool inclTimeLimited) {
     if (unlockskin) return true;
-    return _IsHaveHeroSkin(heroId, sId, inclTimeLimited);
+    return _IsHaveHeroSkin(instance, heroId, sId, inclTimeLimited);
 }
 
 
@@ -155,11 +155,11 @@ uint32_t  WearSkinId  (void *instance, uint32_t heroId) {
 // ============================================================
 
 void *(*_RefreshHeroPanel)(void *, bool, bool, bool);
-void (*_Setskin)(void *, int, int);
-void  Setskin  (void *ins, int hId, int sId) {
+void (*_Setskin)(void *, uint32_t, uint32_t, bool);
+void  Setskin  (void *ins, uint32_t hId, uint32_t sId, bool isShareSkin) {
     if (unlockskin && ins != nullptr && sId != 0 && _RefreshHeroPanel)
         _RefreshHeroPanel(ins, true, true, true);
-    _Setskin(ins, hId, sId);
+    _Setskin(ins, hId, sId, isShareSkin);
 }
 
 

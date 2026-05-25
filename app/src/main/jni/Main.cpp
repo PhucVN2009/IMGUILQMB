@@ -417,19 +417,18 @@ ImGui::Combo("##ddd", (int*)&Type, "Tắt\0Win\0Lose\0");
                     ImGui::Text("IsCanUseSkin: %s %p", _IsCanUseSkin  ? "[OK]":"[--]", (void*)_IsCanUseSkin);
                     ImGui::Text("IsHaveHeroSk: %s %p", _IsHaveHeroSkin? "[OK]":"[--]", (void*)_IsHaveHeroSkin);
                     ImGui::Text("WearSkinId:   %s %p", _WearSkinId    ? "[OK]":"[--]", (void*)_WearSkinId);
-                    ImGui::Text("SetSkin:      %s %p", _Setskin       ? "[OK]":"[--]", (void*)_Setskin);
+                    ImGui::Text("OnWearSkin:   %s %p", _Setskin       ? "[OK]":"[--]", (void*)_Setskin);
                     ImGui::Text("RefreshPanel: %s %p", _RefreshHeroPanel? "[OK]":"[--]", (void*)_RefreshHeroPanel);
 
                     // Button unlock hooks
                     ImGui::Text("IsOpen:       %s %p", _IsOpen   ? "[OK]":"[--]", (void*)_IsOpen);
-                    ImGui::Text("GetButtonID:  %s %p", _Buttonid ? "[OK]":"[--]", (void*)_Buttonid);
+                    ImGui::Text("PersonalBtn:  %s %p", _Buttonid ? "[OK]":"[--]", (void*)_Buttonid);
 
                     // Flo hooks
-                    ImGui::Text("Move:         %s %p", _Move          ? "[OK]":"[--]", (void*)_Move);
+                    ImGui::Text("SendMoveDir:  %s %p", _Move          ? "[OK]":"[--]", (void*)_Move);
                     ImGui::Text("ActorDestroy: %s %p", old_ActorLinker_ActorDestroy ? "[OK]":"[--]", (void*)old_ActorLinker_ActorDestroy);
-                    ImGui::Text("ReqInput:     %s %p", _ReqInput      ? "[OK]":"[--]", (void*)_ReqInput);
+                    ImGui::Text("ReadySkill:   %s %p", _ReqInput      ? "[OK]":"[--]", (void*)_ReqInput);
                     ImGui::Text("Reqskill:     %s %p", Reqskill        ? "[OK]":"[--]", (void*)Reqskill);
-                    ImGui::Text("Reqskill2:    %s %p", Reqskill2       ? "[OK]":"[--]", (void*)Reqskill2);
 
                     ImGui::Separator();
                     // saveData state
@@ -718,8 +717,9 @@ void *Init_Thread(void *) {
     //  SKIN UNLOCK HOOKS  (auto-update: scan toàn bộ class)
     // =========================================================
 
-    // Unpack – inject skin ID khi parse gói mạng hero info
-    HOOKANY("AovTdr.dll", "Unpack", 2, unpack, _unpack);
+    // unpack – inject skin ID khi parse gói mạng hero info (thử AovTdr.dll trước, fallback Project_d)
+    HOOKANY("AovTdr.dll", "unpack", 2, unpack, _unpack);
+    if (!_unpack) HOOKANY("Project_d.dll", "unpack", 2, unpack, _unpack);
 
     // IsCanUseSkin(heroId, skinId) – cho phép dùng mọi skin
     HOOKANY("Project_d.dll", "IsCanUseSkin", 2, IsCanUseSkin, _IsCanUseSkin);
@@ -727,14 +727,14 @@ void *Init_Thread(void *) {
     // IsHaveHeroSkin(heroId, skinId, inclTimeLimited) – luôn trả true
     HOOKANY("Project_d.dll", "IsHaveHeroSkin", 3, IsHaveHeroSkin, _IsHaveHeroSkin);
 
-    // WearSkinId(heroId) – trả về skin đã lưu
-    HOOKANY("Project_d.dll", "WearSkinId", 1, WearSkinId, _WearSkinId);
+    // GetHeroWearSkinId(heroId) – trả về skin đã lưu
+    HOOKANY("Project_d.dll", "GetHeroWearSkinId", 1, WearSkinId, _WearSkinId);
 
     // RefreshHeroPanel – resolve pointer (gọi trực tiếp từ Setskin)
     _RefreshHeroPanel = (void *(*)(void *, bool, bool, bool)) GetMethodOffsetAny("Project_d.dll", "RefreshHeroPanel", 3);
 
-    // SetSkin(heroId, skinId) – cập nhật UI skin
-    HOOKANY("Project_d.dll", "SetSkin", 2, Setskin, _Setskin);
+    // OnWearHeroSkin(heroId, skinId, isShareSkin) – cập nhật UI skin
+    HOOKANY("Project_d.dll", "OnWearHeroSkin", 3, Setskin, _Setskin);
 
     // =========================================================
     //  BUTTON UNLOCK HOOKS  (auto-update: scan toàn bộ class)
@@ -743,28 +743,25 @@ void *Init_Thread(void *) {
     // IsOpen() – mở khoá nút bấm skin
     HOOKANY("Project_d.dll", "IsOpen", 0, IsOpen, _IsOpen);
 
-    // GetButtonID() – trả về combined hero+skin ID làm button ID
-    HOOKANY("Project_d.dll", "GetButtonID", 0, Buttonid, _Buttonid);
-    if (!_Buttonid) HOOKANY("Project_d.dll", "get_ButtonId", 0, Buttonid, _Buttonid);
+    // get_PersonalBtnId() – trả về ID nút bấm skin tùy chỉnh
+    HOOKANY("Project_d.dll", "get_PersonalBtnId", 0, Buttonid, _Buttonid);
 
     // =========================================================
     //  FLORENTINO AUTO DANCE HOOKS  (auto-update: scan toàn bộ class)
     // =========================================================
 
-    // Move(Vector2, Vector2) – điều hướng đến hoa passive
-    HOOKANY("Project_d.dll", "Move", 2, Move, _Move);
+    // SendMoveDirection(Vector2, Vector2) – điều hướng đến hoa passive
+    HOOKANY("Project_d.dll", "SendMoveDirection", 2, Move, _Move);
 
-    // ActorLinker ActorDestroy / OnDestroy – dọn con trỏ
-    HOOKANY("Project_d.dll", "ActorDestroy", 0, ActorLinker_ActorDestroy, old_ActorLinker_ActorDestroy);
-    HOOKANY("Project_d.dll", "OnDestroy",    0, ActorLinker_ActorDestroy2, old_ActorLinker_ActorDestroy2);
+    // onActorDestroy(ref prm) – dọn con trỏ khi actor bị huỷ
+    HOOKANY("Project_d.dll", "onActorDestroy", 1, ActorLinker_ActorDestroy, old_ActorLinker_ActorDestroy);
 
-    // ReqInput – bắt đối tượng request skill
-    HOOKANY("Project_d.dll", "RequestSkillInput", 1, ReqInput, _ReqInput);
+    // ReadyUseSkill(bool) – bắt SkillSlot instance để gọi skill sau
+    HOOKANY("Project_d.dll", "ReadyUseSkill", 1, ReqInput, _ReqInput);
 
-    // Reqskill / Reqskill2 – resolve method pointer để auto dùng skill
-    Reqskill  = (void (*)(void *)) GetMethodOffsetAny("Project_d.dll", "UseSkill",  1);
-    Reqskill2 = (void (*)(void *)) GetMethodOffsetAny("Project_d.dll", "UseSkill2", 1);
-    if (!Reqskill2) Reqskill2 = Reqskill;
+    // RequestUseSkill() – resolve method pointer để auto dùng skill
+    Reqskill  = (void (*)(void *)) GetMethodOffsetAny("Project_d.dll", "RequestUseSkill", 0);
+    Reqskill2 = Reqskill;
 
     __android_log_print(ANDROID_LOG_INFO, "SKIN_FLO",
         "unpack=%p IsCanUseSkin=%p WearSkin=%p Setskin=%p IsOpen=%p Buttonid=%p Move=%p Req=%p Reqsk=%p",

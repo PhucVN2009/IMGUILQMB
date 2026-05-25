@@ -25,18 +25,10 @@ void (*Reqskill2)(void *req) = nullptr;
 //  ActorLinker_ActorDestroy  –  dọn con trỏ khi actor bị huỷ
 // ============================================================
 
-void (*old_ActorLinker_ActorDestroy)(void *instance);
-void  ActorLinker_ActorDestroy      (void *instance) {
+void (*old_ActorLinker_ActorDestroy)(void *instance, void *prm);
+void  ActorLinker_ActorDestroy      (void *instance, void *prm) {
     if (instance == nullptr) return;
-    old_ActorLinker_ActorDestroy(instance);
-    if (ForE == instance) ForE = nullptr;
-    if (Req2 == instance) Req2 = nullptr;
-}
-
-void (*old_ActorLinker_ActorDestroy2)(void *instance);
-void  ActorLinker_ActorDestroy2      (void *instance) {
-    if (instance == nullptr) return;
-    old_ActorLinker_ActorDestroy2(instance);
+    old_ActorLinker_ActorDestroy(instance, prm);
     if (ForE == instance) ForE = nullptr;
     if (Req2 == instance) Req2 = nullptr;
 }
@@ -47,10 +39,10 @@ void  ActorLinker_ActorDestroy2      (void *instance) {
 //  (hook vào method nhận input skill / UseSkillInput hoặc tương tự)
 // ============================================================
 
-void (*_ReqInput)(void *ins, void *req);
-void  ReqInput  (void *ins, void *req) {
-    if (req != nullptr) Req2 = req;
-    _ReqInput(ins, req);
+bool (*_ReqInput)(void *ins, bool force);
+bool  ReqInput  (void *ins, bool force) {
+    if (ins != nullptr) Req2 = ins;
+    return _ReqInput(ins, force);
 }
 
 
