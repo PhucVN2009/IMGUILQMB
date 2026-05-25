@@ -6,6 +6,16 @@
 #include "Includes/Utils.h"
 #include "TuanMeta/Call_Me.h"
 #include "UnityResolve.h"
+
+// Fallback: đảm bảo HOOKANY luôn có dù Macros.h chưa cập nhật
+#ifndef HOOKANY
+#define HOOKANY(dll, method, args, org, rep) do { \
+    void *_addr = GetMethodOffsetAny(oxorany(dll), oxorany(method), args); \
+    if (_addr) Tools::Hook(_addr, (void *)org, (void **)&rep); \
+    else __android_log_print(ANDROID_LOG_WARN, "HOOKANY", "SKIP: %s::%s not found", dll, method); \
+} while(0)
+#endif
+
 #include "TouchInput.h"
 #include "Hook.h"
 #include "modskin.h"
