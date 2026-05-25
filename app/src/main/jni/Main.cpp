@@ -426,6 +426,7 @@ ImGui::Combo("##ddd", (int*)&Type, "Tắt\0Win\0Lose\0");
 
                     // Flo hooks
                     ImGui::Text("SendMoveDir:  %s %p", _Move          ? "[OK]":"[--]", (void*)_Move);
+                    ImGui::Text("UpdateFrame:  %s %p", _UpdateFrame   ? "[OK]":"[--]", (void*)_UpdateFrame);
                     ImGui::Text("ActorDestroy: %s %p", old_ActorLinker_ActorDestroy ? "[OK]":"[--]", (void*)old_ActorLinker_ActorDestroy);
                     ImGui::Text("ReadySkill:   %s %p", _ReqInput      ? "[OK]":"[--]", (void*)_ReqInput);
                     ImGui::Text("Reqskill:     %s %p", Reqskill        ? "[OK]":"[--]", (void*)Reqskill);
@@ -438,7 +439,8 @@ ImGui::Combo("##ddd", (int*)&Type, "Tắt\0Win\0Lose\0");
                         CSProtocol::saveData::getEnable() ? 1 : 0);
                     ImGui::Text("heroid=%d skinid=%d", heroid, skinid);
                     ImGui::Text("heroid2=%d skinid2=%d mode=%d", heroid2, skinid2, buttonMode);
-                    ImGui::Text("Muaflo=%d ForE=%p Req2=%p", Muaflo ? 1 : 0, ForE, Req2);
+                    ImGui::Text("Muaflo=%d ForE=%p Req2=%p GI=%p",
+                        Muaflo?1:0, ForE, Req2, gameInputSingleton);
 
                     ImGui::EndChild();
                 }
@@ -750,11 +752,14 @@ void *Init_Thread(void *) {
     //  FLORENTINO AUTO DANCE HOOKS  (auto-update: scan toàn bộ class)
     // =========================================================
 
-    // SendMoveDirection(Vector2, Vector2) – điều hướng đến hoa passive
+    // SendMoveDirection(Vector2, Vector2) – redirect khi player dùng joystick thủ công
     HOOKANY("Project_d.dll", "SendMoveDirection", 2, Move, _Move);
 
-    // onActorDestroy(ref prm) – dọn con trỏ khi actor bị huỷ
-    HOOKANY("Project_d.dll", "onActorDestroy", 1, ActorLinker_ActorDestroy, old_ActorLinker_ActorDestroy);
+    // UpdateFrame() – AUTO chủ động gọi di chuyển mỗi frame trong trận
+    HOOKANY("Project_d.dll", "UpdateFrame", 0, UpdateFrame, _UpdateFrame);
+
+    // onActorDestroy(ref prm) – dọn ForE khi actor bị huỷ (NucleusDrive.dll)
+    HOOKANY("NucleusDrive.dll", "onActorDestroy", 1, ActorLinker_ActorDestroy, old_ActorLinker_ActorDestroy);
 
     // ReadyUseSkill(bool) – bắt SkillSlot instance để gọi skill sau
     HOOKANY("Project_d.dll", "ReadyUseSkill", 1, ReqInput, _ReqInput);
@@ -764,10 +769,10 @@ void *Init_Thread(void *) {
     Reqskill2 = Reqskill;
 
     __android_log_print(ANDROID_LOG_INFO, "SKIN_FLO",
-        "unpack=%p IsCanUseSkin=%p WearSkin=%p Setskin=%p IsOpen=%p Buttonid=%p Move=%p Req=%p Reqsk=%p",
+        "unpack=%p IsCanUseSkin=%p WearSkin=%p Setskin=%p IsOpen=%p Buttonid=%p Move=%p UF=%p Req=%p Reqsk=%p",
         (void*)_unpack, (void*)_IsCanUseSkin, (void*)_WearSkinId,
         (void*)_Setskin, (void*)_IsOpen, (void*)_Buttonid,
-        (void*)_Move, (void*)_ReqInput, (void*)Reqskill);
+        (void*)_Move, (void*)_UpdateFrame, (void*)_ReqInput, (void*)Reqskill);
 
     return nullptr;
 }
