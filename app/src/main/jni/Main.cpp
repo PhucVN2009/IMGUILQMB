@@ -397,6 +397,39 @@ ImGui::Combo("##ddd", (int*)&Type, "Tắt\0Win\0Lose\0");
                     ImGui::Separator();
 
                     ImGui::Checkbox(OBFUSCATE("Show All IDs on Screen"), &dbg_showAllIDs);
+                    ImGui::Separator();
+
+                    // ---- SKIN / BUTTON / FLO DEBUG ----
+                    ImGui::TextColored(ImVec4(1,0.4f,1,1), "SKIN & BUTTON & FLO");
+
+                    // Skin unlock hooks
+                    ImGui::Text("unpack:       %s %p", _unpack        ? "[OK]":"[--]", (void*)_unpack);
+                    ImGui::Text("IsCanUseSkin: %s %p", _IsCanUseSkin  ? "[OK]":"[--]", (void*)_IsCanUseSkin);
+                    ImGui::Text("IsHaveHeroSk: %s %p", _IsHaveHeroSkin? "[OK]":"[--]", (void*)_IsHaveHeroSkin);
+                    ImGui::Text("WearSkinId:   %s %p", _WearSkinId    ? "[OK]":"[--]", (void*)_WearSkinId);
+                    ImGui::Text("SetSkin:      %s %p", _Setskin       ? "[OK]":"[--]", (void*)_Setskin);
+                    ImGui::Text("RefreshPanel: %s %p", _RefreshHeroPanel? "[OK]":"[--]", (void*)_RefreshHeroPanel);
+
+                    // Button unlock hooks
+                    ImGui::Text("IsOpen:       %s %p", _IsOpen   ? "[OK]":"[--]", (void*)_IsOpen);
+                    ImGui::Text("GetButtonID:  %s %p", _Buttonid ? "[OK]":"[--]", (void*)_Buttonid);
+
+                    // Flo hooks
+                    ImGui::Text("Move:         %s %p", _Move          ? "[OK]":"[--]", (void*)_Move);
+                    ImGui::Text("ActorDestroy: %s %p", old_ActorLinker_ActorDestroy ? "[OK]":"[--]", (void*)old_ActorLinker_ActorDestroy);
+                    ImGui::Text("ReqInput:     %s %p", _ReqInput      ? "[OK]":"[--]", (void*)_ReqInput);
+                    ImGui::Text("Reqskill:     %s %p", Reqskill        ? "[OK]":"[--]", (void*)Reqskill);
+                    ImGui::Text("Reqskill2:    %s %p", Reqskill2       ? "[OK]":"[--]", (void*)Reqskill2);
+
+                    ImGui::Separator();
+                    // saveData state
+                    ImGui::Text("saveData hero=%u skin=%u enable=%d",
+                        CSProtocol::saveData::getHeroId(),
+                        (uint32_t)CSProtocol::saveData::getSkinId(),
+                        CSProtocol::saveData::getEnable() ? 1 : 0);
+                    ImGui::Text("heroid=%d skinid=%d", heroid, skinid);
+                    ImGui::Text("heroid2=%d skinid2=%d mode=%d", heroid2, skinid2, buttonMode);
+                    ImGui::Text("Muaflo=%d ForE=%p Req2=%p", Muaflo ? 1 : 0, ForE, Req2);
 
                     ImGui::EndChild();
                 }
