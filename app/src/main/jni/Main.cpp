@@ -17,6 +17,7 @@
 #include <chrono>
 #include <iomanip>
 #include "login.h"
+#include "antiban.h"
 static bool keyLoaded = true;
 static bool isLogin = true;
 static bool showLoginSuccess = false;
@@ -250,6 +251,18 @@ EGLBoolean _eglSwapBuffers(EGLDisplay dpy, EGLSurface surface) {
                     ImGui::SliderFloat(OBFUSCATE("Ult Y"), &g_ultPosY, 0.0f, 500.0f);
                     ImGui::Text("MyCamp: %d (auto)", myPlayerCamp);
 
+                    ImGui::Spacing();
+                    ImGui::Separator();
+                    ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.4f, 1.0f), OBFUSCATE("ANTIBAN"));
+                    ImGui::Spacing();
+                    ImGui::Checkbox(OBFUSCATE("Bypass AntiCheat"), &antiban);
+                    if (antiban) {
+                        ImGui::TextColored(ImVec4(0.2f, 1.0f, 0.2f, 1.0f), OBFUSCATE("AntiCheat: BYPASSED"));
+                        ImGui::Text(OBFUSCATE("HashCheck: OFF | Ban: BLOCK | Log: BLOCK"));
+                    } else {
+                        ImGui::TextDisabled(OBFUSCATE("AntiCheat: Normal"));
+                    }
+
                     ImGui::EndChild();
                 }
 
@@ -423,6 +436,39 @@ void *Init_Thread(void *) {
     }
 
     __android_log_print(ANDROID_LOG_INFO, "ESP_INIT", "All hooks installed");
+
+    // =========================================================
+    //  ANTIBAN HOOKS
+    // =========================================================
+
+    // OnHashCheckRsp – chặn client react khi server báo hash mismatch
+    HOOKANY("NucleusDrive.dll", "OnHashCheckRsp", 1, OnHashCheckRsp, _OnHashCheckRsp);
+    if (!_OnHashCheckRsp)
+        HOOKANY("Project_d.dll", "OnHashCheckRsp", 1, OnHashCheckRsp, _OnHashCheckRsp);
+
+    // ModifyBantimeInfo – chặn server thay đổi trạng thái ban realtime (MsgID 1043)
+    HOOKANY("Project_d.dll", "ModifyBantimeInfo", 1, ModifyBantimeInfo, _ModifyBantimeInfo);
+
+    // On_GetViolationNotice – chặn thông báo vi phạm từ server (MsgID 20500)
+    HOOKANY("Project_d.dll", "On_GetViolationNotice", 1, On_GetViolationNotice, _On_GetViolationNotice);
+
+    // OnUpload – chặn server ra lệnh upload log trận đấu (MsgID 1288)
+    HOOKANY("NucleusDrive.dll", "OnUpload", 1, OnUpload, _OnUpload);
+    if (!_OnUpload)
+        HOOKANY("Project_d.dll", "OnUpload", 1, OnUpload, _OnUpload);
+
+    // SetBanTimeInfo – ngăn trạng thái ban được lưu vào client
+    HOOKANY("Project_d.dll", "SetBanTimeInfo", 2, SetBanTimeInfo, _SetBanTimeInfo);
+
+    // OnActorAbnormalMove – suppress abnormal move event (teleport/speedhack detect)
+    HOOKANY("NucleusDrive.dll", "OnActorAbnormalMove", 1, OnActorAbnormalMove, _OnActorAbnormalMove);
+    if (!_OnActorAbnormalMove)
+        HOOKANY("Project_d.dll", "OnActorAbnormalMove", 1, OnActorAbnormalMove, _OnActorAbnormalMove);
+
+    __android_log_print(ANDROID_LOG_INFO, "ANTIBAN",
+        "HashRsp=%p BanMod=%p ViolNtf=%p Upload=%p BanTime=%p AbnMove=%p",
+        (void*)_OnHashCheckRsp, (void*)_ModifyBantimeInfo, (void*)_On_GetViolationNotice,
+        (void*)_OnUpload, (void*)_SetBanTimeInfo, (void*)_OnActorAbnormalMove);
 
     return nullptr;
 }
