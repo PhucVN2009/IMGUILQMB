@@ -1388,4 +1388,64 @@ inline uintptr_t GetFieldOffset(const char *image_name,
     return (uintptr_t)offset;
 }
 
+// Scan toàn bộ class trong image, tìm method theo tên + số args (không cần biết namespace/class)
+// Trả về RVA (relative to il2cpp base), 0 nếu không tìm thấy.
+// argsCount = -1 để bỏ qua kiểm tra số tham số.
+inline uint64_t FindMethodOffsetAny(const char *image_name,
+                                    const char *method_name,
+                                    int argsCount = -1) {
+    unity_cache_t *cache = get_cached_unity();
+    if (!cache || !image_name || !method_name) return 0;
+
+    uint32_t imagesOff = cache->hdr[42], imagesSize  = cache->hdr[43];
+    uint32_t typeOff   = cache->hdr[40], typeSize    = cache->hdr[41];
+    uint32_t methOff   = cache->hdr[12], methSize    = cache->hdr[13];
+
+    const Il2CppImageDefinition  *images  = (const Il2CppImageDefinition  *)(cache->meta.data + imagesOff);
+    int img_n  = imagesSize / (int)sizeof(Il2CppImageDefinition);
+    const Il2CppTypeDefinition   *types   = (const Il2CppTypeDefinition   *)(cache->meta.data + typeOff);
+    int type_n = typeSize   / (int)sizeof(Il2CppTypeDefinition);
+    const Il2CppMethodDefinition *methods = (const Il2CppMethodDefinition *)(cache->meta.data + methOff);
+    int meth_n = methSize   / (int)sizeof(Il2CppMethodDefinition);
+
+    for (int i = 0; i < img_n; i++) {
+        const char *img = metadata_string(&cache->meta, cache->hdr, images[i].nameIndex);
+        if (!img || strcmp(img, image_name) != 0) continue;
+
+        int t0 = images[i].typeStart, t1 = t0 + (int)images[i].typeCount;
+        if (t0 < 0 || t0 > type_n) continue;
+        if (t1 > type_n) t1 = type_n;
+
+        for (int t = t0; t < t1; t++) {
+            int m0 = types[t].methodStart, m1 = m0 + (int)types[t].method_count;
+            if (m0 < 0 || m0 > meth_n) continue;
+            if (m1 > meth_n) m1 = meth_n;
+
+            for (int m = m0; m < m1; m++) {
+                const char *mn = metadata_string(&cache->meta, cache->hdr, methods[m].nameIndex);
+                if (!mn || strcmp(mn, method_name) != 0) continue;
+                if (argsCount >= 0 && (int)methods[m].parameterCount != argsCount) continue;
+
+                uint64_t va = 0;
+                if (!get_method_ptr(&cache->unity, &cache->data_secs, &cache->exec_secs,
+                                    cache->code_reg_va, image_name, methods[m].token, &va))
+                    continue;
+                if (!va) continue;
+
+                uint64_t rva = (cache->image_base > 0) ? (va - cache->image_base) : va;
+                __android_log_print(ANDROID_LOG_INFO, "HOOKANY",
+                    "Found %s::%s in [%s.%s] rva=0x%llx",
+                    image_name, method_name,
+                    metadata_string(&cache->meta, cache->hdr, types[t].namespaceIndex) ?: "",
+                    metadata_string(&cache->meta, cache->hdr, types[t].nameIndex) ?: "?",
+                    (unsigned long long)rva);
+                return rva;
+            }
+        }
+    }
+    __android_log_print(ANDROID_LOG_WARN, "HOOKANY",
+        "NOT FOUND: %s::%s (args=%d)", image_name, method_name, argsCount);
+    return 0;
+}
+
 } // namespace Unity

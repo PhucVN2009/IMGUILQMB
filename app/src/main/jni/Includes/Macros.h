@@ -117,6 +117,13 @@ void patchOffsetSym(uintptr_t absolute_address, std::string hexBytes, bool isOn)
     else __android_log_print(ANDROID_LOG_WARN, "HOOKAU", "SKIP: %s.%s::%s not found", dll, claz, method); \
 } while(0)
 
+// Tìm và hook method theo tên, scan toàn bộ class trong image (auto-update style)
+#define HOOKANY(dll, method, args, org, rep) do { \
+    void *_addr = GetMethodOffsetAny(oxorany(dll), oxorany(method), args); \
+    if (_addr) Tools::Hook(_addr, (void *)org, (void **)&rep); \
+    else __android_log_print(ANDROID_LOG_WARN, "HOOKANY", "SKIP: %s::%s not found", dll, method); \
+} while(0)
+
 #define HOOKAU_NO_ORIG(dll, ns, claz, method, args, org, rep) do { \
     void *_addr = (void *)(uintptr_t)GetMethodOffset(oxorany(dll), oxorany(ns), oxorany(claz), oxorany(method), args); \
     if (_addr) Tools::Hook(_addr, (void *)org, NULL); \

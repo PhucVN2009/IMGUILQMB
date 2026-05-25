@@ -19,3 +19,11 @@ inline void *GetMethodOffset(const char *image, const char *namespaze, const cha
 inline uintptr_t GetFieldOffset(const char *image, const char *namespaze, const char *clazz, const char *field) {
     return Unity::GetFieldOffset(image, namespaze, clazz, field);
 }
+
+// Tìm method theo tên trong toàn bộ class của image (không cần namespace/class)
+// argsCount = -1 để skip kiểm tra số tham số
+inline void *GetMethodOffsetAny(const char *image, const char *method, int args = -1) {
+    uintptr_t rva = (uintptr_t)Unity::FindMethodOffsetAny(image, method, args);
+    if (!rva) return nullptr;
+    return (void *)(g_il2cpp_base + rva);
+}

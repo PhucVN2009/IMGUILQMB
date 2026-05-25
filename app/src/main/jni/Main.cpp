@@ -672,84 +672,62 @@ void *Init_Thread(void *) {
     __android_log_print(ANDROID_LOG_INFO, "ESP_INIT", "All hooks installed");
 
     // =========================================================
-    //  SKIN UNLOCK HOOKS
+    //  SKIN UNLOCK HOOKS  (auto-update: scan toàn bộ class)
     // =========================================================
 
     // Unpack – inject skin ID khi parse gói mạng hero info
-    HOOKAU("AovTdr.dll", "CSProtocol", "COMDT_HERO_COMMON_INFO", "Unpack", 2, unpack, _unpack);
+    HOOKANY("AovTdr.dll", "Unpack", 2, unpack, _unpack);
 
-    // IsCanUseSkin – cho phép dùng mọi skin (thử nhiều namespace)
-    HOOKAU("Project_d.dll", "Assets.Scripts.GameLogic", "SkinProxy", "IsCanUseSkin", 2, IsCanUseSkin, _IsCanUseSkin);
-    if (!_IsCanUseSkin) HOOKAU("Project_d.dll", "", "SkinProxy", "IsCanUseSkin", 2, IsCanUseSkin, _IsCanUseSkin);
-    if (!_IsCanUseSkin) HOOKAU("Project_d.dll", "Assets.Scripts.GameLogic", "HeroProxy", "IsCanUseSkin", 2, IsCanUseSkin, _IsCanUseSkin);
-    if (!_IsCanUseSkin) HOOKAU("Project_d.dll", "", "HeroSkinProxy", "IsCanUseSkin", 2, IsCanUseSkin, _IsCanUseSkin);
+    // IsCanUseSkin(heroId, skinId) – cho phép dùng mọi skin
+    HOOKANY("Project_d.dll", "IsCanUseSkin", 2, IsCanUseSkin, _IsCanUseSkin);
 
-    // IsHaveHeroSkin – luôn trả true
-    HOOKAU("Project_d.dll", "Assets.Scripts.GameLogic", "SkinProxy", "IsHaveHeroSkin", 3, IsHaveHeroSkin, _IsHaveHeroSkin);
-    if (!_IsHaveHeroSkin) HOOKAU("Project_d.dll", "", "SkinProxy", "IsHaveHeroSkin", 3, IsHaveHeroSkin, _IsHaveHeroSkin);
-    if (!_IsHaveHeroSkin) HOOKAU("Project_d.dll", "Assets.Scripts.GameLogic", "HeroProxy", "IsHaveHeroSkin", 3, IsHaveHeroSkin, _IsHaveHeroSkin);
+    // IsHaveHeroSkin(heroId, skinId, inclTimeLimited) – luôn trả true
+    HOOKANY("Project_d.dll", "IsHaveHeroSkin", 3, IsHaveHeroSkin, _IsHaveHeroSkin);
 
-    // WearSkinId – trả về skin đã lưu
-    HOOKAU("Project_d.dll", "Assets.Scripts.GameLogic", "SkinProxy", "WearSkinId", 1, WearSkinId, _WearSkinId);
-    if (!_WearSkinId) HOOKAU("Project_d.dll", "", "SkinProxy", "WearSkinId", 1, WearSkinId, _WearSkinId);
-    if (!_WearSkinId) HOOKAU("Project_d.dll", "Assets.Scripts.GameLogic", "HeroProxy", "WearSkinId", 1, WearSkinId, _WearSkinId);
+    // WearSkinId(heroId) – trả về skin đã lưu
+    HOOKANY("Project_d.dll", "WearSkinId", 1, WearSkinId, _WearSkinId);
 
-    // RefreshHeroPanel + SetSkin (UI cập nhật skin)
-    _RefreshHeroPanel = (void *(*)(void *, bool, bool, bool)) GetMethodOffset("Project_d.dll", "Assets.Scripts.UI", "SelectHeroPanel", "RefreshHeroPanel", 3);
-    if (!_RefreshHeroPanel) _RefreshHeroPanel = (void *(*)(void *, bool, bool, bool)) GetMethodOffset("Project_d.dll", "", "SelectHeroPanel", "RefreshHeroPanel", 3);
-    HOOKAU("Project_d.dll", "Assets.Scripts.UI", "SelectHeroPanel", "SetSkin", 2, Setskin, _Setskin);
-    if (!_Setskin) HOOKAU("Project_d.dll", "", "SelectHeroPanel", "SetSkin", 2, Setskin, _Setskin);
-    if (!_Setskin) HOOKAU("Project_d.dll", "Assets.Scripts.UI", "HeroDetailPanel", "SetSkin", 2, Setskin, _Setskin);
+    // RefreshHeroPanel – resolve pointer (gọi trực tiếp từ Setskin)
+    _RefreshHeroPanel = (void *(*)(void *, bool, bool, bool)) GetMethodOffsetAny("Project_d.dll", "RefreshHeroPanel", 3);
+
+    // SetSkin(heroId, skinId) – cập nhật UI skin
+    HOOKANY("Project_d.dll", "SetSkin", 2, Setskin, _Setskin);
 
     // =========================================================
-    //  BUTTON UNLOCK HOOKS
+    //  BUTTON UNLOCK HOOKS  (auto-update: scan toàn bộ class)
     // =========================================================
 
-    // IsOpen – mở khoá nút bấm skin
-    HOOKAU("Project_d.dll", "Assets.Scripts.UI", "HeroBtnCtrl", "IsOpen", 0, IsOpen, _IsOpen);
-    if (!_IsOpen) HOOKAU("Project_d.dll", "", "HeroBtnCtrl", "IsOpen", 0, IsOpen, _IsOpen);
-    if (!_IsOpen) HOOKAU("Project_d.dll", "Assets.Scripts.UI", "SkinBtnCtrl", "IsOpen", 0, IsOpen, _IsOpen);
+    // IsOpen() – mở khoá nút bấm skin
+    HOOKANY("Project_d.dll", "IsOpen", 0, IsOpen, _IsOpen);
 
-    // Buttonid – trả về combined hero+skin ID làm button ID
-    HOOKAU("Project_d.dll", "Assets.Scripts.UI", "HeroBtnCtrl", "GetButtonID", 0, Buttonid, _Buttonid);
-    if (!_Buttonid) HOOKAU("Project_d.dll", "", "HeroBtnCtrl", "GetButtonID", 0, Buttonid, _Buttonid);
-    if (!_Buttonid) HOOKAU("Project_d.dll", "Assets.Scripts.UI", "SkinBtnCtrl", "GetButtonID", 0, Buttonid, _Buttonid);
-    if (!_Buttonid) HOOKAU("Project_d.dll", "", "SkinBtnCtrl", "get_ButtonId", 0, Buttonid, _Buttonid);
+    // GetButtonID() – trả về combined hero+skin ID làm button ID
+    HOOKANY("Project_d.dll", "GetButtonID", 0, Buttonid, _Buttonid);
+    if (!_Buttonid) HOOKANY("Project_d.dll", "get_ButtonId", 0, Buttonid, _Buttonid);
 
     // =========================================================
-    //  FLORENTINO AUTO DANCE HOOKS
+    //  FLORENTINO AUTO DANCE HOOKS  (auto-update: scan toàn bộ class)
     // =========================================================
 
-    // Move – điều hướng đến hoa passive
-    HOOKAU("Project_d.dll", "Assets.Scripts.GameLogic.InputSystem", "MoveInputSystem", "Move", 2, Move, _Move);
-    if (!_Move) HOOKAU("Project_d.dll", "", "MoveInputSystem", "Move", 2, Move, _Move);
-    if (!_Move) HOOKAU("Project_d.dll", "Assets.Scripts.GameLogic", "InputMoveSystem", "Move", 2, Move, _Move);
-    if (!_Move) HOOKAU("Project_d.dll", "", "InputMoveSystem", "Move", 2, Move, _Move);
+    // Move(Vector2, Vector2) – điều hướng đến hoa passive
+    HOOKANY("Project_d.dll", "Move", 2, Move, _Move);
 
-    // ActorLinker ActorDestroy – dọn con trỏ
-    HOOKAU("Project_d.dll", "Kyrios.Actor", "ActorLinker", "ActorDestroy", 0, ActorLinker_ActorDestroy, old_ActorLinker_ActorDestroy);
-    if (!old_ActorLinker_ActorDestroy) HOOKAU("Project_d.dll", "", "ActorLinker", "ActorDestroy", 0, ActorLinker_ActorDestroy, old_ActorLinker_ActorDestroy);
-    HOOKAU("Project_d.dll", "Kyrios.Actor", "ActorLinker", "OnDestroy", 0, ActorLinker_ActorDestroy2, old_ActorLinker_ActorDestroy2);
-    if (!old_ActorLinker_ActorDestroy2) HOOKAU("Project_d.dll", "", "ActorLinker", "OnDestroy", 0, ActorLinker_ActorDestroy2, old_ActorLinker_ActorDestroy2);
+    // ActorLinker ActorDestroy / OnDestroy – dọn con trỏ
+    HOOKANY("Project_d.dll", "ActorDestroy", 0, ActorLinker_ActorDestroy, old_ActorLinker_ActorDestroy);
+    HOOKANY("Project_d.dll", "OnDestroy",    0, ActorLinker_ActorDestroy2, old_ActorLinker_ActorDestroy2);
 
-    // ReqInput – bắt đối tượng request skill để dùng auto skill
-    HOOKAU("Project_d.dll", "Assets.Scripts.GameLogic.InputSystem", "SkillInputSystem", "RequestSkillInput", 1, ReqInput, _ReqInput);
-    if (!_ReqInput) HOOKAU("Project_d.dll", "", "SkillInputSystem", "RequestSkillInput", 1, ReqInput, _ReqInput);
-    if (!_ReqInput) HOOKAU("Project_d.dll", "", "InputSkillSystem", "RequestSkillInput", 1, ReqInput, _ReqInput);
+    // ReqInput – bắt đối tượng request skill
+    HOOKANY("Project_d.dll", "RequestSkillInput", 1, ReqInput, _ReqInput);
 
-    // Reqskill / Reqskill2 – resolve method pointer để dùng skill
-    Reqskill  = (void (*)(void *)) GetMethodOffset("Project_d.dll", "Assets.Scripts.GameLogic.InputSystem", "SkillInputSystem", "UseSkill",  1);
-    if (!Reqskill)  Reqskill  = (void (*)(void *)) GetMethodOffset("Project_d.dll", "", "SkillInputSystem", "UseSkill",  1);
-    if (!Reqskill)  Reqskill  = (void (*)(void *)) GetMethodOffset("Project_d.dll", "", "InputSkillSystem", "UseSkill",  1);
-    Reqskill2 = (void (*)(void *)) GetMethodOffset("Project_d.dll", "Assets.Scripts.GameLogic.InputSystem", "SkillInputSystem", "UseSkill2", 1);
-    if (!Reqskill2) Reqskill2 = (void (*)(void *)) GetMethodOffset("Project_d.dll", "", "SkillInputSystem", "UseSkill2", 1);
-    if (!Reqskill2) Reqskill2 = Reqskill; // fallback: dùng cùng 1 method
+    // Reqskill / Reqskill2 – resolve method pointer để auto dùng skill
+    Reqskill  = (void (*)(void *)) GetMethodOffsetAny("Project_d.dll", "UseSkill",  1);
+    Reqskill2 = (void (*)(void *)) GetMethodOffsetAny("Project_d.dll", "UseSkill2", 1);
+    if (!Reqskill2) Reqskill2 = Reqskill;
 
     __android_log_print(ANDROID_LOG_INFO, "SKIN_FLO",
-        "unpack=%p IsCanUseSkin=%p WearSkin=%p Setskin=%p IsOpen=%p Buttonid=%p Move=%p Req=%p",
+        "unpack=%p IsCanUseSkin=%p WearSkin=%p Setskin=%p IsOpen=%p Buttonid=%p Move=%p Req=%p Reqsk=%p",
         (void*)_unpack, (void*)_IsCanUseSkin, (void*)_WearSkinId,
         (void*)_Setskin, (void*)_IsOpen, (void*)_Buttonid,
-        (void*)_Move, (void*)_ReqInput);
+        (void*)_Move, (void*)_ReqInput, (void*)Reqskill);
 
     return nullptr;
 }
