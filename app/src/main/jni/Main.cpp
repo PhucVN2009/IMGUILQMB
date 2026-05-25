@@ -8,6 +8,8 @@
 #include "UnityResolve.h"
 #include "TouchInput.h"
 #include "Hook.h"
+#include "modskin.h"
+#include "Flo.h"
 #include "SaveLoadMenu.h"
 #include <sys/stat.h>
 #include <ctime>
@@ -205,6 +207,10 @@ EGLBoolean _eglSwapBuffers(EGLDisplay dpy, EGLSurface surface) {
                 if(ImGui::Button(OBFUSCATE(ICON_FA_WRENCH " Debug"), ImVec2(170, 60))) TabMenu = 7;
                 ImGui::PopStyleColor();
 
+                ImGui::PushStyleColor(ImGuiCol_Button, TabMenu == 8 ? ImGui::GetStyle().Colors[ImGuiCol_ButtonHovered] : ImGui::GetStyle().Colors[ImGuiCol_Button]);
+                if(ImGui::Button(OBFUSCATE(ICON_FA_PAINT_BRUSH " Skin & Flo"), ImVec2(170, 60))) TabMenu = 8;
+                ImGui::PopStyleColor();
+
                 ImGui::NextColumn();
 
                 if(TabMenu == 1){
@@ -395,6 +401,105 @@ ImGui::Combo("##ddd", (int*)&Type, "Tắt\0Win\0Lose\0");
                     ImGui::EndChild();
                 }
 
+                // =====================================================
+                //  TAB 8 – SKIN & FLO
+                // =====================================================
+                if (TabMenu == 8) {
+                    ImGui::BeginChild(OBFUSCATE("##ChildTab8"), ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetContentRegionAvail().y), false);
+
+                    // ---------- UNLOCK SKIN ----------
+                    ImGui::TextColored(ImVec4(0.3f, 0.8f, 1.0f, 1.0f), OBFUSCATE("UNLOCK SKIN"));
+                    ImGui::Separator();
+                    ImGui::Spacing();
+
+                    if (ImGui::Checkbox(OBFUSCATE("Unlock All Skin"), &unlockskin)) {
+                        if (!unlockskin) {
+                            CSProtocol::saveData::setEnable(false);
+                            CSProtocol::saveData::resetArrayUnpackSkin();
+                        }
+                    }
+                    ImGui::PushItemWidth(160);
+                    ImGui::InputInt(OBFUSCATE("Hero ID##skin"), &heroid);
+                    ImGui::SameLine();
+                    ImGui::InputInt(OBFUSCATE("Skin ID##skin"), &skinid);
+                    ImGui::PopItemWidth();
+                    if (ImGui::Button(OBFUSCATE("Áp dụng Skin"), ImVec2(-1, 0))) {
+                        if (heroid > 0 && skinid > 0) {
+                            CSProtocol::saveData::setData((uint32_t)heroid, (uint16_t)skinid);
+                        }
+                    }
+                    {
+                        uint32_t sh = CSProtocol::saveData::getHeroId();
+                        uint16_t ss = CSProtocol::saveData::getSkinId();
+                        if (sh != 0)
+                            ImGui::TextColored(ImVec4(1,1,0,1), OBFUSCATE("Đang dùng: Hero %u  Skin %u"), sh, (uint32_t)ss);
+                        else
+                            ImGui::TextDisabled(OBFUSCATE("Chưa chọn hero / skin"));
+                    }
+
+                    ImGui::Spacing();
+                    ImGui::Spacing();
+
+                    // ---------- UNLOCK BUTTON ----------
+                    ImGui::TextColored(ImVec4(0.3f, 0.8f, 1.0f, 1.0f), OBFUSCATE("UNLOCK BUTTON"));
+                    ImGui::Separator();
+                    ImGui::Spacing();
+
+                    ImGui::Checkbox(OBFUSCATE("Unlock Button Skin"), &unlockbutton);
+                    ImGui::Spacing();
+
+                    ImGui::Text(OBFUSCATE("Chế độ:"));
+                    ImGui::RadioButton(OBFUSCATE("Auto (theo skin đang dùng)"), &buttonMode, 0);
+                    ImGui::RadioButton(OBFUSCATE("Custom ID"),                  &buttonMode, 1);
+
+                    if (buttonMode == 1) {
+                        ImGui::PushItemWidth(160);
+                        ImGui::InputInt(OBFUSCATE("Hero ID##btn"), &heroid2);
+                        ImGui::SameLine();
+                        ImGui::InputInt(OBFUSCATE("Skin ID##btn"), &skinid2);
+                        ImGui::PopItemWidth();
+                    } else {
+                        // Hiển thị ID sẽ được dùng khi ở Auto mode
+                        uint32_t ah = CSProtocol::saveData::getHeroId();
+                        uint16_t as_ = CSProtocol::saveData::getSkinId();
+                        if (ah != 0 && as_ != 0) {
+                            std::string combined = std::to_string(ah) + std::to_string(as_);
+                            ImGui::TextColored(ImVec4(1,1,0,1), OBFUSCATE("Button ID: %s"), combined.c_str());
+                        } else {
+                            ImGui::TextDisabled(OBFUSCATE("(cần bật Unlock Skin trước)"));
+                        }
+                    }
+                    if (buttonMode == 1 && heroid2 != 0 && skinid2 != 0) {
+                        std::string combined = std::to_string(heroid2) + std::to_string(skinid2);
+                        ImGui::TextColored(ImVec4(1,1,0,1), OBFUSCATE("Button ID: %s"), combined.c_str());
+                    }
+
+                    ImGui::Spacing();
+                    ImGui::Spacing();
+
+                    // ---------- AUTO MÚA FLORENTINO ----------
+                    ImGui::TextColored(ImVec4(0.3f, 0.8f, 1.0f, 1.0f), OBFUSCATE("AUTO MUA FLORENTINO"));
+                    ImGui::Separator();
+                    ImGui::Spacing();
+
+                    ImGui::Checkbox(OBFUSCATE("Auto Mua Flo (Hero ID 521)"), &Muaflo);
+                    ImGui::Spacing();
+                    ImGui::TextWrapped(OBFUSCATE(
+                        "Tu dong di chuyen den vi tri hoa passive Florentino "
+                        "khi co dich gan, dung skill de thu hoa gay sat thuong."));
+                    ImGui::Spacing();
+                    if (ForE)
+                        ImGui::TextColored(ImVec4(0,1,0,1), OBFUSCATE("Target: %p"), ForE);
+                    else
+                        ImGui::TextDisabled(OBFUSCATE("Chua co target"));
+                    if (Req2)
+                        ImGui::TextColored(ImVec4(0,1,0,1), OBFUSCATE("Req2: %p"), Req2);
+                    else
+                        ImGui::TextDisabled(OBFUSCATE("Req2: chua resolve"));
+
+                    ImGui::EndChild();
+                }
+
                 ImGui::EndPopup();
             }
         }else{
@@ -565,9 +670,87 @@ void *Init_Thread(void *) {
     }
 
     __android_log_print(ANDROID_LOG_INFO, "ESP_INIT", "All hooks installed");
-    
-    
-    
+
+    // =========================================================
+    //  SKIN UNLOCK HOOKS
+    // =========================================================
+
+    // Unpack – inject skin ID khi parse gói mạng hero info
+    HOOKAU("AovTdr.dll", "CSProtocol", "COMDT_HERO_COMMON_INFO", "Unpack", 2, unpack, _unpack);
+
+    // IsCanUseSkin – cho phép dùng mọi skin (thử nhiều namespace)
+    HOOKAU("Project_d.dll", "Assets.Scripts.GameLogic", "SkinProxy", "IsCanUseSkin", 2, IsCanUseSkin, _IsCanUseSkin);
+    if (!_IsCanUseSkin) HOOKAU("Project_d.dll", "", "SkinProxy", "IsCanUseSkin", 2, IsCanUseSkin, _IsCanUseSkin);
+    if (!_IsCanUseSkin) HOOKAU("Project_d.dll", "Assets.Scripts.GameLogic", "HeroProxy", "IsCanUseSkin", 2, IsCanUseSkin, _IsCanUseSkin);
+    if (!_IsCanUseSkin) HOOKAU("Project_d.dll", "", "HeroSkinProxy", "IsCanUseSkin", 2, IsCanUseSkin, _IsCanUseSkin);
+
+    // IsHaveHeroSkin – luôn trả true
+    HOOKAU("Project_d.dll", "Assets.Scripts.GameLogic", "SkinProxy", "IsHaveHeroSkin", 3, IsHaveHeroSkin, _IsHaveHeroSkin);
+    if (!_IsHaveHeroSkin) HOOKAU("Project_d.dll", "", "SkinProxy", "IsHaveHeroSkin", 3, IsHaveHeroSkin, _IsHaveHeroSkin);
+    if (!_IsHaveHeroSkin) HOOKAU("Project_d.dll", "Assets.Scripts.GameLogic", "HeroProxy", "IsHaveHeroSkin", 3, IsHaveHeroSkin, _IsHaveHeroSkin);
+
+    // WearSkinId – trả về skin đã lưu
+    HOOKAU("Project_d.dll", "Assets.Scripts.GameLogic", "SkinProxy", "WearSkinId", 1, WearSkinId, _WearSkinId);
+    if (!_WearSkinId) HOOKAU("Project_d.dll", "", "SkinProxy", "WearSkinId", 1, WearSkinId, _WearSkinId);
+    if (!_WearSkinId) HOOKAU("Project_d.dll", "Assets.Scripts.GameLogic", "HeroProxy", "WearSkinId", 1, WearSkinId, _WearSkinId);
+
+    // RefreshHeroPanel + SetSkin (UI cập nhật skin)
+    _RefreshHeroPanel = (void *(*)(void *, bool, bool, bool)) GetMethodOffset("Project_d.dll", "Assets.Scripts.UI", "SelectHeroPanel", "RefreshHeroPanel", 3);
+    if (!_RefreshHeroPanel) _RefreshHeroPanel = (void *(*)(void *, bool, bool, bool)) GetMethodOffset("Project_d.dll", "", "SelectHeroPanel", "RefreshHeroPanel", 3);
+    HOOKAU("Project_d.dll", "Assets.Scripts.UI", "SelectHeroPanel", "SetSkin", 2, Setskin, _Setskin);
+    if (!_Setskin) HOOKAU("Project_d.dll", "", "SelectHeroPanel", "SetSkin", 2, Setskin, _Setskin);
+    if (!_Setskin) HOOKAU("Project_d.dll", "Assets.Scripts.UI", "HeroDetailPanel", "SetSkin", 2, Setskin, _Setskin);
+
+    // =========================================================
+    //  BUTTON UNLOCK HOOKS
+    // =========================================================
+
+    // IsOpen – mở khoá nút bấm skin
+    HOOKAU("Project_d.dll", "Assets.Scripts.UI", "HeroBtnCtrl", "IsOpen", 0, IsOpen, _IsOpen);
+    if (!_IsOpen) HOOKAU("Project_d.dll", "", "HeroBtnCtrl", "IsOpen", 0, IsOpen, _IsOpen);
+    if (!_IsOpen) HOOKAU("Project_d.dll", "Assets.Scripts.UI", "SkinBtnCtrl", "IsOpen", 0, IsOpen, _IsOpen);
+
+    // Buttonid – trả về combined hero+skin ID làm button ID
+    HOOKAU("Project_d.dll", "Assets.Scripts.UI", "HeroBtnCtrl", "GetButtonID", 0, Buttonid, _Buttonid);
+    if (!_Buttonid) HOOKAU("Project_d.dll", "", "HeroBtnCtrl", "GetButtonID", 0, Buttonid, _Buttonid);
+    if (!_Buttonid) HOOKAU("Project_d.dll", "Assets.Scripts.UI", "SkinBtnCtrl", "GetButtonID", 0, Buttonid, _Buttonid);
+    if (!_Buttonid) HOOKAU("Project_d.dll", "", "SkinBtnCtrl", "get_ButtonId", 0, Buttonid, _Buttonid);
+
+    // =========================================================
+    //  FLORENTINO AUTO DANCE HOOKS
+    // =========================================================
+
+    // Move – điều hướng đến hoa passive
+    HOOKAU("Project_d.dll", "Assets.Scripts.GameLogic.InputSystem", "MoveInputSystem", "Move", 2, Move, _Move);
+    if (!_Move) HOOKAU("Project_d.dll", "", "MoveInputSystem", "Move", 2, Move, _Move);
+    if (!_Move) HOOKAU("Project_d.dll", "Assets.Scripts.GameLogic", "InputMoveSystem", "Move", 2, Move, _Move);
+    if (!_Move) HOOKAU("Project_d.dll", "", "InputMoveSystem", "Move", 2, Move, _Move);
+
+    // ActorLinker ActorDestroy – dọn con trỏ
+    HOOKAU("Project_d.dll", "Kyrios.Actor", "ActorLinker", "ActorDestroy", 0, ActorLinker_ActorDestroy, old_ActorLinker_ActorDestroy);
+    if (!old_ActorLinker_ActorDestroy) HOOKAU("Project_d.dll", "", "ActorLinker", "ActorDestroy", 0, ActorLinker_ActorDestroy, old_ActorLinker_ActorDestroy);
+    HOOKAU("Project_d.dll", "Kyrios.Actor", "ActorLinker", "OnDestroy", 0, ActorLinker_ActorDestroy2, old_ActorLinker_ActorDestroy2);
+    if (!old_ActorLinker_ActorDestroy2) HOOKAU("Project_d.dll", "", "ActorLinker", "OnDestroy", 0, ActorLinker_ActorDestroy2, old_ActorLinker_ActorDestroy2);
+
+    // ReqInput – bắt đối tượng request skill để dùng auto skill
+    HOOKAU("Project_d.dll", "Assets.Scripts.GameLogic.InputSystem", "SkillInputSystem", "RequestSkillInput", 1, ReqInput, _ReqInput);
+    if (!_ReqInput) HOOKAU("Project_d.dll", "", "SkillInputSystem", "RequestSkillInput", 1, ReqInput, _ReqInput);
+    if (!_ReqInput) HOOKAU("Project_d.dll", "", "InputSkillSystem", "RequestSkillInput", 1, ReqInput, _ReqInput);
+
+    // Reqskill / Reqskill2 – resolve method pointer để dùng skill
+    Reqskill  = (void (*)(void *)) GetMethodOffset("Project_d.dll", "Assets.Scripts.GameLogic.InputSystem", "SkillInputSystem", "UseSkill",  1);
+    if (!Reqskill)  Reqskill  = (void (*)(void *)) GetMethodOffset("Project_d.dll", "", "SkillInputSystem", "UseSkill",  1);
+    if (!Reqskill)  Reqskill  = (void (*)(void *)) GetMethodOffset("Project_d.dll", "", "InputSkillSystem", "UseSkill",  1);
+    Reqskill2 = (void (*)(void *)) GetMethodOffset("Project_d.dll", "Assets.Scripts.GameLogic.InputSystem", "SkillInputSystem", "UseSkill2", 1);
+    if (!Reqskill2) Reqskill2 = (void (*)(void *)) GetMethodOffset("Project_d.dll", "", "SkillInputSystem", "UseSkill2", 1);
+    if (!Reqskill2) Reqskill2 = Reqskill; // fallback: dùng cùng 1 method
+
+    __android_log_print(ANDROID_LOG_INFO, "SKIN_FLO",
+        "unpack=%p IsCanUseSkin=%p WearSkin=%p Setskin=%p IsOpen=%p Buttonid=%p Move=%p Req=%p",
+        (void*)_unpack, (void*)_IsCanUseSkin, (void*)_WearSkinId,
+        (void*)_Setskin, (void*)_IsOpen, (void*)_Buttonid,
+        (void*)_Move, (void*)_ReqInput);
+
     return nullptr;
 }
 
