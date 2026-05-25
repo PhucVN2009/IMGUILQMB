@@ -112,6 +112,9 @@ static bool FindFlowerTarget(Vector2 &outDir) {
 //  Hook GameInput.UpdateFrame() – chạy mỗi frame trong trận
 // ============================================================
 
+// Forward declaration – _Move defined in Move hook section below
+void (*_Move)(void *ins, Vector2 a, Vector2 b);
+
 void (*_UpdateFrame)(void *ins);
 void  UpdateFrame  (void *ins) {
     _UpdateFrame(ins);
@@ -134,7 +137,6 @@ void  UpdateFrame  (void *ins) {
 //  Move hook  –  redirect khi player dùng joystick thủ công
 // ============================================================
 
-void (*_Move)(void *ins, Vector2 a, Vector2 b);
 void  Move  (void *ins, Vector2 a, Vector2 b) {
     if (ins != nullptr) gameInputSingleton = ins;
 
