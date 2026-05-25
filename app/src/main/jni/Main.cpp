@@ -424,65 +424,6 @@ void *Init_Thread(void *) {
 
     __android_log_print(ANDROID_LOG_INFO, "ESP_INIT", "All hooks installed");
 
-    // =========================================================
-    //  SKIN UNLOCK HOOKS  (auto-update: scan toàn bộ class)
-    // =========================================================
-
-    // unpack – inject skin ID khi parse gói mạng hero info (thử AovTdr.dll trước, fallback Project_d)
-    HOOKANY("AovTdr.dll", "unpack", 2, unpack, _unpack);
-    if (!_unpack) HOOKANY("Project_d.dll", "unpack", 2, unpack, _unpack);
-
-    // IsCanUseSkin(heroId, skinId) – cho phép dùng mọi skin
-    HOOKANY("Project_d.dll", "IsCanUseSkin", 2, IsCanUseSkin, _IsCanUseSkin);
-
-    // IsHaveHeroSkin(heroId, skinId, inclTimeLimited) – luôn trả true
-    HOOKANY("Project_d.dll", "IsHaveHeroSkin", 3, IsHaveHeroSkin, _IsHaveHeroSkin);
-
-    // GetHeroWearSkinId(heroId) – trả về skin đã lưu
-    HOOKANY("Project_d.dll", "GetHeroWearSkinId", 1, WearSkinId, _WearSkinId);
-
-    // RefreshHeroPanel – resolve pointer (gọi trực tiếp từ Setskin)
-    _RefreshHeroPanel = (void *(*)(void *, bool, bool, bool)) GetMethodOffsetAny("Project_d.dll", "RefreshHeroPanel", 3);
-
-    // OnWearHeroSkin(heroId, skinId, isShareSkin) – cập nhật UI skin
-    HOOKANY("Project_d.dll", "OnWearHeroSkin", 3, Setskin, _Setskin);
-
-    // =========================================================
-    //  BUTTON UNLOCK HOOKS  (auto-update: scan toàn bộ class)
-    // =========================================================
-
-    // IsOpen() – mở khoá nút bấm skin
-    HOOKANY("Project_d.dll", "IsOpen", 0, IsOpen, _IsOpen);
-
-    // get_PersonalBtnId() – trả về ID nút bấm skin tùy chỉnh
-    HOOKANY("Project_d.dll", "get_PersonalBtnId", 0, Buttonid, _Buttonid);
-
-    // =========================================================
-    //  FLORENTINO AUTO DANCE HOOKS  (auto-update: scan toàn bộ class)
-    // =========================================================
-
-    // SendMoveDirection(Vector2, Vector2) – redirect khi player dùng joystick thủ công
-    HOOKANY("Project_d.dll", "SendMoveDirection", 2, Move, _Move);
-
-    // UpdateFrame() – AUTO chủ động gọi di chuyển mỗi frame trong trận
-    HOOKANY("Project_d.dll", "UpdateFrame", 0, UpdateFrame, _UpdateFrame);
-
-    // onActorDestroy(ref prm) – dọn ForE khi actor bị huỷ (NucleusDrive.dll)
-    HOOKANY("NucleusDrive.dll", "onActorDestroy", 1, ActorLinker_ActorDestroy, old_ActorLinker_ActorDestroy);
-
-    // ReadyUseSkill(bool) – bắt SkillSlot instance để gọi skill sau
-    HOOKANY("Project_d.dll", "ReadyUseSkill", 1, ReqInput, _ReqInput);
-
-    // RequestUseSkill() – resolve method pointer để auto dùng skill
-    Reqskill  = (void (*)(void *)) GetMethodOffsetAny("Project_d.dll", "RequestUseSkill", 0);
-    Reqskill2 = Reqskill;
-
-    __android_log_print(ANDROID_LOG_INFO, "SKIN_FLO",
-        "unpack=%p IsCanUseSkin=%p WearSkin=%p Setskin=%p IsOpen=%p Buttonid=%p Move=%p UF=%p Req=%p Reqsk=%p",
-        (void*)_unpack, (void*)_IsCanUseSkin, (void*)_WearSkinId,
-        (void*)_Setskin, (void*)_IsOpen, (void*)_Buttonid,
-        (void*)_Move, (void*)_UpdateFrame, (void*)_ReqInput, (void*)Reqskill);
-
     return nullptr;
 }
 
