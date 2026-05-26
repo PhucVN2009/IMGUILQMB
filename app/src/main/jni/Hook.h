@@ -569,6 +569,7 @@ void DestroyActor(void *instance) {
 
       campDetectAttempts = 0;
       Lactor = nullptr;
+      Lactor_Root = nullptr;
     }
   }
   _DestroyActor(instance);
@@ -598,7 +599,8 @@ void (*_FightOver_LGameActorMgr)(void *instance);
 void FightOver_LGameActorMgr(void *instance) {
   __android_log_print(ANDROID_LOG_INFO, "CRASH_DBG",
                       "FightOver: START instance=%p", instance);
-  Lactor = nullptr; // Clear first to prevent other hooks from using stale ptr
+  Lactor = nullptr;      // Clear first to prevent other hooks from using stale ptr
+  Lactor_Root = nullptr;
   LGameActorMgr = NULL;
   campDetected = false;
   ResponseBuf[0].Count = 0;
@@ -710,33 +712,72 @@ void MiniMapSys(void *instance) {
 // Hooks FightForm.UpdateTeleportBtnStatus() and forces m_TeleportButtonLeft /
 // m_TeleportButtonRight active after the original runs, bypassing all mode
 // checks (IsTrainingMode, isPVPLevel, etc.) so the button works in PvP too.
-// Field offsets and go_SetActive are resolved at runtime via GetFieldOffset /
-// GetMethodOffset (no hardcoded values).
+// Field offsets resolved via GetFieldOffset; fallback to dump-known values.
 static bool g_forceTrainingTeleport = false;
 static void (*go_SetActive)(void* go, bool active) = nullptr;
 static int  off_TeleportLeft  = 0;  // FightForm.m_TeleportButtonLeft offset
 static int  off_TeleportRight = 0;  // FightForm.m_TeleportButtonRight offset
+// Dump-known fallback offsets (version 1.62.1.4); used if GetFieldOffset fails
+static const int kTeleportLeftFallback  = 0x1D8;
+static const int kTeleportRightFallback = 0x1E8;
 static void (*orig_UpdateTeleportBtnStatus)(void* thiz) = nullptr;
 static void hook_UpdateTeleportBtnStatus(void* thiz) {
     if (orig_UpdateTeleportBtnStatus) orig_UpdateTeleportBtnStatus(thiz);
     if (!g_forceTrainingTeleport || !thiz || !go_SetActive) return;
-    if (off_TeleportLeft > 0) {
-        void* btn = *(void**)((uintptr_t)thiz + (uintptr_t)off_TeleportLeft);
-        if (btn && (uintptr_t)btn > 0x1000000ull) go_SetActive(btn, true);
-    }
-    if (off_TeleportRight > 0) {
-        void* btn = *(void**)((uintptr_t)thiz + (uintptr_t)off_TeleportRight);
-        if (btn && (uintptr_t)btn > 0x1000000ull) go_SetActive(btn, true);
-    }
+    int offL = (off_TeleportLeft  > 0) ? off_TeleportLeft  : kTeleportLeftFallback;
+    int offR = (off_TeleportRight > 0) ? off_TeleportRight : kTeleportRightFallback;
+    void* btnL = *(void**)((uintptr_t)thiz + (uintptr_t)offL);
+    if (btnL && (uintptr_t)btnL > 0x1000000ull) go_SetActive(btnL, true);
+    void* btnR = *(void**)((uintptr_t)thiz + (uintptr_t)offR);
+    if (btnR && (uintptr_t)btnR > 0x1000000ull) go_SetActive(btnR, true);
 }
 
 // ─── Coordinates / Position setter ──────────────────────────────────────────
-// set_location(VInt3): ActorLinker – sets actor's world position directly
-// (VInt3 uses milliunits: float ×1000 → VInt3 int, VInt3 int /1000 → float)
+// ActorLinker.set_location – Unity visual layer
 static void (*set_location_linker)(void* thiz, VInt3 value) = nullptr;
+// LActorRoot.set_location – game logic layer (deterministic simulation)
+static void (*set_location_root)(void* thiz, VInt3 value) = nullptr;
+// Host player's LActorRoot* (set during ESP scan alongside Lactor)
+static void* Lactor_Root = nullptr;
+
 static float g_coordTargetX = 0.f;
 static float g_coordTargetY = 0.f;
 static float g_coordTargetZ = 0.f;
+
+// ─── MoveToPosCommand – server-synced teleport ────────────────────────────────
+// Hooks _ExecCommandImpl to intercept the next MoveToPosCommand (triggered
+// when the player uses the minimap teleport button) and replace its
+// destPosition with our target before execution.
+static bool g_pendingTeleport = false;
+static VInt3 g_pendingDest   = {0, 0, 0};
+// Frame command submit chain (for future injection path)
+static void* (*get_ActiveBattleLogic_fn)()        = nullptr;
+static void* (*get_frameSynchr_fn)(void* logic)   = nullptr;
+static void  (*PushFrameCommand_fn)(void* synchr, void* cmd) = nullptr;
+static void  (*orig_MtpCmd_Exec)(void* thiz, void* battleLogic) = nullptr;
+static void hook_MtpCmd_Exec(void* thiz, void* battleLogic) {
+    if (g_pendingTeleport && thiz) {
+        // Scan the command object for a plausible VInt3 (map range milliunits)
+        // and patch it to our target. Try offsets 0x38–0x58 to cover the
+        // destPosition field regardless of exact struct layout.
+        for (uintptr_t off = 0x38; off <= 0x58; off += 4) {
+            int* pX = (int*)((uintptr_t)thiz + off);
+            int* pY = (int*)((uintptr_t)thiz + off + 4);
+            int* pZ = (int*)((uintptr_t)thiz + off + 8);
+            // Valid map VInt3: |X|,|Z| < 30 000 000 mm (30 km), |Y| < 3 000 000 mm
+            if (__builtin_abs(*pX) < 30000000 &&
+                __builtin_abs(*pY) <  3000000 &&
+                __builtin_abs(*pZ) < 30000000) {
+                *pX = g_pendingDest.X;
+                *pY = g_pendingDest.Y;
+                *pZ = g_pendingDest.Z;
+                g_pendingTeleport = false;
+                break;
+            }
+        }
+    }
+    if (orig_MtpCmd_Exec) orig_MtpCmd_Exec(thiz, battleLogic);
+}
 
 void drawTextInt(ImVec2 position, int value, ImDrawList *draw) {
   char format_text[1024];
@@ -1076,6 +1117,15 @@ void ESPUpdateResponse(void *instance) {
           //   continue;
 
           bool isEnemy = (camp != myPlayerCamp);
+
+          // Capture host player's LActorRoot: match by mRealObjID with Lactor
+          // LActorRoot.mRealObjID is at 0x28; ActorLinker.mRealObjID is at 0x128
+          if (!isEnemy && Lactor && !Lactor_Root) {
+              uint32_t larId = *(uint32_t*)((uintptr_t)actorRoot + 0x28);
+              uint32_t linId = *(uint32_t*)((uintptr_t)Lactor   + 0x128);
+              if (larId > 0 && larId == linId)
+                  Lactor_Root = actorRoot;
+          }
 
           // === Smooth position: lerp from previous frame to reduce jitter ===
           Vector3 prevPos = {0, 0, 0};

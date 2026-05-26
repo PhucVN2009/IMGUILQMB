@@ -930,7 +930,15 @@ ImGui::Combo("##ddd", (int*)&Type, "Tắt\0Win\0Lose\0");
                     ImGui::Spacing();
 
                     // ── Nút đặt vị trí ───────────────────────────────────
-                    bool canTeleport = Lactor && set_location_linker;
+                    // Status line: show resolution state
+                    ImGui::TextColored(
+                        set_location_linker ? ImVec4(0.2f,1,0.4f,1) : ImVec4(1,0.4f,0.2f,1),
+                        OBFUSCATE("linker:%s  root:%s  MtpCmd:%s"),
+                        set_location_linker ? "OK" : "X",
+                        set_location_root   ? "OK" : "X",
+                        orig_MtpCmd_Exec    ? "OK" : "X");
+
+                    bool canTeleport = Lactor && (set_location_linker || set_location_root);
                     if (!canTeleport) ImGui::BeginDisabled();
                     ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.1f,0.45f,0.6f,1));
                     ImGui::PushStyleColor(ImGuiCol_ButtonHovered,  ImVec4(0.15f,0.6f,0.8f,1));
@@ -939,16 +947,19 @@ ImGui::Combo("##ddd", (int*)&Type, "Tắt\0Win\0Lose\0");
                         dest.X = (int)(g_coordTargetX * 1000.f);
                         dest.Y = (int)(g_coordTargetY * 1000.f);
                         dest.Z = (int)(g_coordTargetZ * 1000.f);
-                        set_location_linker(Lactor, dest);
+                        // Update both Unity visual layer and game logic layer
+                        if (set_location_linker && Lactor)      set_location_linker(Lactor,      dest);
+                        if (set_location_root   && Lactor_Root) set_location_root(Lactor_Root, dest);
+                        // Also queue for next MoveToPosCommand intercept (syncs to server)
+                        g_pendingDest    = dest;
+                        g_pendingTeleport = true;
                     }
                     ImGui::PopStyleColor(2);
-                    if (!canTeleport) {
-                        ImGui::EndDisabled();
-                        ImGui::TextColored(ImVec4(1,0.4f,0.2f,1),
-                            OBFUSCATE("set_location: %s | Actor: %s"),
-                            set_location_linker ? "OK" : "X",
-                            Lactor ? "OK" : "X (chua vao tran)");
-                    }
+                    if (!canTeleport) ImGui::EndDisabled();
+                    if (Lactor && g_pendingTeleport)
+                        ImGui::TextColored(ImVec4(1,0.9f,0,1), OBFUSCATE("Cho MoveToPosCmd de dong bo server..."));
+                    if (!Lactor)
+                        ImGui::TextColored(ImVec4(1,0.4f,0.2f,1), OBFUSCATE("Chua vao tran"));
 
                     ImGui::EndChild();
                 }
@@ -1029,8 +1040,15 @@ void *Init_Thread(void *) {
     if (!go_SetActive) go_SetActive = (void(*)(void*,bool)) GetMethodOffset("UnityEngine.dll", "UnityEngine", "GameObject", "SetActive", 1);
     off_TeleportLeft  = (int)(uintptr_t) GetFieldOffset("Project_d.dll", "Assets.Scripts.GameSystem", "FightForm", "m_TeleportButtonLeft");
     off_TeleportRight = (int)(uintptr_t) GetFieldOffset("Project_d.dll", "Assets.Scripts.GameSystem", "FightForm", "m_TeleportButtonRight");
-    // Coordinates tab – set actor world position
-    set_location_linker = (void(*)(void*,VInt3)) GetMethodOffset("Project_d.dll", "Kyrios.Actor", "ActorLinker", "set_location", 0);
+    // Coordinates tab – set actor world position (both layers)
+    set_location_linker = (void(*)(void*,VInt3)) GetMethodOffset("Project_d.dll", "Kyrios.Actor", "ActorLinker", "set_location", 1);
+    set_location_root   = (void(*)(void*,VInt3)) GetMethodOffset("Project.Plugins_d.dll", "NucleusDrive.Logic", "LActorRoot", "set_location", 1);
+    // MoveToPosCommand intercept: hook _ExecCommandImpl(LBattleLogic) (1 param)
+    HOOKAU("Project.Plugins_d.dll", "NucleusDrive.Logic", "MoveToPosCommand", "_ExecCommandImpl", 1, hook_MtpCmd_Exec, orig_MtpCmd_Exec);
+    // Frame sync helpers for command injection (not strictly needed now, resolved for future use)
+    get_ActiveBattleLogic_fn = (void*(*)()) GetMethodOffset("Project.Plugins_d.dll", "NucleusDrive.Proxy", "LFrameworkEditorProxy", "get_ActiveBattleLogic", 0);
+    get_frameSynchr_fn       = (void*(*)(void*)) GetMethodOffset("Project.Plugins_d.dll", "NucleusDrive.Logic", "LBattleLogic", "get_frameSynchr", 0);
+    PushFrameCommand_fn      = (void(*)(void*,void*)) GetMethodOffset("Project.Plugins_d.dll", "NucleusDrive.Logic", "LFrameSynchr", "PushFrameCommand", 1);
 
     // === ESP Core ===
     get_camera = (void *(*)()) GetMethodOffset("UnityEngine.CoreModule.dll", "UnityEngine", "Camera", "get_main", 0);
