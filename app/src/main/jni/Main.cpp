@@ -18,6 +18,7 @@
 #include "login.h"
 #include "il2cpp_dump.h"
 #include "LagGame.h"
+#include "LagSpam.h"
 
 static bool g_dumpRunning  = false;
 static bool g_dumpDone     = false;
@@ -134,6 +135,7 @@ EGLBoolean _eglSwapBuffers(EGLDisplay dpy, EGLSurface surface) {
     WantTextInputLast = io.WantTextInput;
 
     LagGame_Update();
+    LagSpam_Update();
 
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplAndroid_NewFrame(glWidth, glHeight);
@@ -243,6 +245,10 @@ EGLBoolean _eglSwapBuffers(EGLDisplay dpy, EGLSurface surface) {
                 if(ImGui::Button(OBFUSCATE(ICON_FA_FILE " Dump IL2CPP"), ImVec2(170, 60))) TabMenu = 8;
                 ImGui::PopStyleColor();
 
+                ImGui::PushStyleColor(ImGuiCol_Button, TabMenu == 9 ? ImVec4(0.6f,0.1f,0.1f,1) : ImGui::GetStyle().Colors[ImGuiCol_Button]);
+                if(ImGui::Button(OBFUSCATE(ICON_FA_BOLT " Hack Lag"), ImVec2(170, 60))) TabMenu = 9;
+                ImGui::PopStyleColor();
+
                 ImGui::NextColumn();
 
                 if(TabMenu == 1){
@@ -310,73 +316,6 @@ EGLBoolean _eglSwapBuffers(EGLDisplay dpy, EGLSurface surface) {
                     ImGui::SliderFloat(OBFUSCATE("##AimBotC3"), &MemoryHack.Aimbot.Value_3, 0.f, 100.f);
                     ImGui::PopItemWidth();
 */
-
-                    // ── LAG GAME ───────────────────────────────────────────
-                    ImGui::Spacing();
-                    ImGui::Separator();
-                    ImGui::Spacing();
-
-                    // Header với màu cảnh báo khi bật
-                    if (LagGame.enable) {
-                        ImGui::TextColored(ImVec4(1,0.2f,0.2f,1), OBFUSCATE(ICON_FA_MICROCHIP " LAG GAME [DANG BAT]"));
-                    } else {
-                        ImGui::TextColored(ImVec4(1,0.8f,0,1), OBFUSCATE(ICON_FA_MICROCHIP " Lag Game (ca 2 team)"));
-                    }
-
-                    ImGui::PushStyleColor(ImGuiCol_CheckMark, LagGame.enable ? ImVec4(1,0.2f,0.2f,1) : ImVec4(0.3f,1,0.3f,1));
-                    ImGui::Checkbox(OBFUSCATE("##LagEnable"), &LagGame.enable);
-                    ImGui::PopStyleColor();
-                    ImGui::SameLine();
-                    ImGui::Text(LagGame.enable ? OBFUSCATE("Dang lag (tat de restore)") : OBFUSCATE("Bat de lag ca 2 team"));
-
-                    if (LagGame.enable || lag_saved) {
-                        ImGui::Spacing();
-
-                        // TimeScale slider
-                        ImGui::Text(OBFUSCATE("Time Scale (thap = lag manh):"));
-                        ImGui::PushStyleColor(ImGuiCol_SliderGrab, ImVec4(1,0.3f,0.3f,1));
-                        ImGui::PushItemWidth(-1);
-                        ImGui::SliderFloat(OBFUSCATE("##LagTS"), &LagGame.timeScale, 0.05f, 1.0f);
-                        ImGui::PopItemWidth();
-                        ImGui::PopStyleColor();
-                        // Hiển thị mức độ lag
-                        float pct = (1.0f - LagGame.timeScale) * 100.f;
-                        if      (pct >= 85.f) ImGui::TextColored(ImVec4(1,0,0,1),     OBFUSCATE("Muc do lag: %.0f%% [CHET LAG]"), pct);
-                        else if (pct >= 60.f) ImGui::TextColored(ImVec4(1,0.5f,0,1),  OBFUSCATE("Muc do lag: %.0f%% [Rat nang]"), pct);
-                        else if (pct >= 30.f) ImGui::TextColored(ImVec4(1,1,0,1),     OBFUSCATE("Muc do lag: %.0f%% [Nhe]"), pct);
-                        else                  ImGui::TextColored(ImVec4(0.5f,1,0.5f,1),OBFUSCATE("Muc do lag: %.0f%% [Khong dang ke]"), pct);
-
-                        ImGui::Spacing();
-
-                        // FPS limiter
-                        ImGui::Checkbox(OBFUSCATE("Gioi han FPS"), &LagGame.limitFPS);
-                        if (LagGame.limitFPS) {
-                            ImGui::SameLine();
-                            ImGui::PushItemWidth(120);
-                            ImGui::SliderInt(OBFUSCATE("##LagFPS"), &LagGame.targetFPS, 1, 30);
-                            ImGui::PopItemWidth();
-                            ImGui::SameLine();
-                            ImGui::Text(OBFUSCATE("FPS"));
-                        }
-
-                        // Physics slowdown
-                        ImGui::Checkbox(OBFUSCATE("Lam cham Physics"), &LagGame.slowPhysics);
-                        if (LagGame.slowPhysics) {
-                            ImGui::SameLine();
-                            ImGui::PushItemWidth(120);
-                            ImGui::SliderFloat(OBFUSCATE("##LagFD"), &LagGame.fixedDelta, 0.05f, 0.5f);
-                            ImGui::PopItemWidth();
-                        }
-
-                        // Status pointers
-                        ImGui::Spacing();
-                        ImGui::TextColored(ImVec4(0.5f,0.5f,0.5f,1),
-                            OBFUSCATE("set_ts:%s fps:%s fix:%s"),
-                            lag_set_timeScale      ? "OK" : "X",
-                            lag_set_targetFrameRate ? "OK" : "X",
-                            lag_set_fixedDeltaTime  ? "OK" : "X");
-                    }
-                    // ── END LAG GAME ───────────────────────────────────────
 
                     ImGui::EndChild();
                 }
@@ -563,6 +502,172 @@ ImGui::Combo("##ddd", (int*)&Type, "Tắt\0Win\0Lose\0");
                     ImGui::EndChild();
                 }
 
+                // ═══════════════════════════════════════════════════════
+                // TAB 9 – HACK LAG (đầy đủ tất cả tính năng)
+                // ═══════════════════════════════════════════════════════
+                if(TabMenu == 9){
+                    ImGui::BeginChild(OBFUSCATE("##ChildTab9"), ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetContentRegionAvail().y), false);
+
+                    // ── SECTION 1: LAG ENGINE ──────────────────────────
+                    if (LagGame.enable)
+                        ImGui::TextColored(ImVec4(1,0.15f,0.15f,1), OBFUSCATE(ICON_FA_BOLT " LAG ENGINE [DANG BAT]"));
+                    else
+                        ImGui::TextColored(ImVec4(1,0.75f,0,1),     OBFUSCATE(ICON_FA_BOLT " Lag Engine"));
+                    ImGui::Separator();
+
+                    // Enable toggle
+                    ImGui::PushStyleColor(ImGuiCol_CheckMark, LagGame.enable ? ImVec4(1,0.15f,0.15f,1) : ImVec4(0.3f,1,0.3f,1));
+                    ImGui::Checkbox(OBFUSCATE("##LagEngEn"), &LagGame.enable);
+                    ImGui::PopStyleColor();
+                    ImGui::SameLine();
+                    ImGui::Text(LagGame.enable ? OBFUSCATE("Dang lag – tat de restore") : OBFUSCATE("Bat de lam lag ca 2 team"));
+
+                    // TimeScale
+                    ImGui::Spacing();
+                    ImGui::Text(OBFUSCATE("Time Scale  (thap = lag manh):"));
+                    ImGui::PushStyleColor(ImGuiCol_SliderGrab, ImVec4(1,0.25f,0.25f,1));
+                    ImGui::PushItemWidth(-1);
+                    ImGui::SliderFloat(OBFUSCATE("##LagTS9"), &LagGame.timeScale, 0.05f, 1.0f);
+                    ImGui::PopItemWidth();
+                    ImGui::PopStyleColor();
+                    {
+                        float pct = (1.0f - LagGame.timeScale) * 100.f;
+                        if      (pct >= 85.f) ImGui::TextColored(ImVec4(1,0,0,1),      OBFUSCATE("  Muc do: %.0f%%  [CHET LAG]"), pct);
+                        else if (pct >= 60.f) ImGui::TextColored(ImVec4(1,0.45f,0,1),  OBFUSCATE("  Muc do: %.0f%%  [Rat nang]"), pct);
+                        else if (pct >= 30.f) ImGui::TextColored(ImVec4(1,1,0,1),      OBFUSCATE("  Muc do: %.0f%%  [Nhe]"), pct);
+                        else                  ImGui::TextColored(ImVec4(0.4f,1,0.4f,1),OBFUSCATE("  Muc do: %.0f%%  [Khong dang ke]"), pct);
+                    }
+
+                    // FPS Limiter
+                    ImGui::Spacing();
+                    ImGui::Checkbox(OBFUSCATE("Gioi han FPS"), &LagGame.limitFPS);
+                    if (LagGame.limitFPS) {
+                        ImGui::SameLine();
+                        ImGui::PushItemWidth(140);
+                        ImGui::SliderInt(OBFUSCATE("##LagFPS9"), &LagGame.targetFPS, 1, 30);
+                        ImGui::PopItemWidth();
+                        ImGui::SameLine();
+                        ImGui::Text(OBFUSCATE("FPS"));
+                    }
+
+                    // Physics slowdown
+                    ImGui::Checkbox(OBFUSCATE("Lam cham Physics"), &LagGame.slowPhysics);
+                    if (LagGame.slowPhysics) {
+                        ImGui::SameLine();
+                        ImGui::Text(OBFUSCATE("fixedDelta:"));
+                        ImGui::SameLine();
+                        ImGui::PushItemWidth(140);
+                        ImGui::SliderFloat(OBFUSCATE("##LagFD9"), &LagGame.fixedDelta, 0.05f, 0.5f);
+                        ImGui::PopItemWidth();
+                    }
+
+                    // Engine pointer status
+                    ImGui::Spacing();
+                    ImGui::TextColored(ImVec4(0.45f,0.45f,0.45f,1),
+                        OBFUSCATE("set_ts:%s  fps:%s  fix:%s"),
+                        lag_set_timeScale       ? "OK" : "X",
+                        lag_set_targetFrameRate ? "OK" : "X",
+                        lag_set_fixedDeltaTime  ? "OK" : "X");
+
+                    // ── SECTION 2: EMOJI / DANCE / GESTURE SPAM ──────────
+                    ImGui::Spacing();
+                    ImGui::Separator();
+                    ImGui::Spacing();
+                    if (LagSpam.emojiEnable)
+                        ImGui::TextColored(ImVec4(1,0.15f,0.15f,1), OBFUSCATE(ICON_FA_STAR " Emoji/Dance/Gesture Spam [DANG SPAM]"));
+                    else
+                        ImGui::TextColored(ImVec4(0.8f,0.8f,0.2f,1), OBFUSCATE(ICON_FA_STAR " Emoji / Dance / Gesture Spam"));
+                    ImGui::Separator();
+
+                    // Instance status
+                    if (g_spamEffectComp)
+                        ImGui::TextColored(ImVec4(0.2f,1,0.4f,1), OBFUSCATE("Instance: CAPTURED  OK"));
+                    else
+                        ImGui::TextColored(ImVec4(1,0.6f,0,1),    OBFUSCATE("Instance: CHUA (vao tran roi dung emoji 1 lan)"));
+
+                    ImGui::Spacing();
+
+                    // Enable + interval
+                    ImGui::PushStyleColor(ImGuiCol_CheckMark, LagSpam.emojiEnable ? ImVec4(1,0.15f,0.15f,1) : ImVec4(0.3f,1,0.3f,1));
+                    ImGui::Checkbox(OBFUSCATE("##SpamEmoEn"), &LagSpam.emojiEnable);
+                    ImGui::PopStyleColor();
+                    ImGui::SameLine();
+                    ImGui::Text(OBFUSCATE("Bat Spam"));
+                    ImGui::SameLine();
+                    ImGui::Text(OBFUSCATE("  Interval:"));
+                    ImGui::SameLine();
+                    ImGui::PushItemWidth(130);
+                    ImGui::SliderFloat(OBFUSCATE("##SpamEmoInt"), &LagSpam.emojiInterval, 0.01f, 1.0f, "%.2fs");
+                    ImGui::PopItemWidth();
+
+                    // Index
+                    ImGui::Text(OBFUSCATE("Index:"));
+                    ImGui::SameLine();
+                    ImGui::PushItemWidth(-1);
+                    ImGui::SliderInt(OBFUSCATE("##SpamEmoIdx"), &LagSpam.emojiIndex, 0, 99);
+                    ImGui::PopItemWidth();
+
+                    // Type checkboxes
+                    ImGui::Spacing();
+                    ImGui::Text(OBFUSCATE("Loai spam:"));
+                    ImGui::BeginTable(OBFUSCATE("##spamTypes"), 3);
+                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Emoji"),       &LagSpam.typeEmoji);
+                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Dance"),       &LagSpam.typeDance);
+                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("EmojiDance"),  &LagSpam.typeCombo);
+                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Gesture 2"),   &LagSpam.typeGesture2);
+                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Gesture 3"),   &LagSpam.typeGesture3);
+                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("G2 Cancel"),   &LagSpam.typeG2Cancel);
+                    ImGui::EndTable();
+
+                    // Pointer status
+                    ImGui::Spacing();
+                    ImGui::TextColored(ImVec4(0.45f,0.45f,0.45f,1),
+                        OBFUSCATE("emoji:%s  dance:%s  combo:%s  g2:%s  g3:%s  g2c:%s"),
+                        spam_SendEmojiByIdx      ? "OK" : "X",
+                        spam_SendDanceByIdx      ? "OK" : "X",
+                        spam_SendEmojiDanceByIdx ? "OK" : "X",
+                        spam_Gesture2            ? "OK" : "X",
+                        spam_Gesture3            ? "OK" : "X",
+                        spam_Gesture2Cancel      ? "OK" : "X");
+
+                    // ── SECTION 3: CHAT EMOJI SPAM ────────────────────────
+                    ImGui::Spacing();
+                    ImGui::Separator();
+                    ImGui::Spacing();
+                    if (LagSpam.chatEnable)
+                        ImGui::TextColored(ImVec4(1,0.15f,0.15f,1), OBFUSCATE(ICON_FA_COMMENTS " Chat Emoji Spam [DANG SPAM]"));
+                    else
+                        ImGui::TextColored(ImVec4(0.8f,0.8f,0.2f,1), OBFUSCATE(ICON_FA_COMMENTS " Chat Emoji Spam  (static – khong can instance)"));
+                    ImGui::Separator();
+
+                    // Enable + interval
+                    ImGui::PushStyleColor(ImGuiCol_CheckMark, LagSpam.chatEnable ? ImVec4(1,0.15f,0.15f,1) : ImVec4(0.3f,1,0.3f,1));
+                    ImGui::Checkbox(OBFUSCATE("##SpamChatEn"), &LagSpam.chatEnable);
+                    ImGui::PopStyleColor();
+                    ImGui::SameLine();
+                    ImGui::Text(OBFUSCATE("Bat Spam"));
+                    ImGui::SameLine();
+                    ImGui::Text(OBFUSCATE("  Interval:"));
+                    ImGui::SameLine();
+                    ImGui::PushItemWidth(130);
+                    ImGui::SliderFloat(OBFUSCATE("##SpamChatInt"), &LagSpam.chatInterval, 0.02f, 2.0f, "%.2fs");
+                    ImGui::PopItemWidth();
+
+                    // Emoji ID
+                    ImGui::Text(OBFUSCATE("Emoji ID:"));
+                    ImGui::SameLine();
+                    ImGui::PushItemWidth(-1);
+                    ImGui::SliderInt(OBFUSCATE("##SpamChatID"), &LagSpam.chatEmojiID, 1, 50);
+                    ImGui::PopItemWidth();
+
+                    // Pointer status
+                    ImGui::Spacing();
+                    ImGui::TextColored(ImVec4(0.45f,0.45f,0.45f,1),
+                        OBFUSCATE("SendEmojiMsgInTeam: %s"), spam_ChatEmoji ? "OK" : "X (chua resolve)");
+
+                    ImGui::EndChild();
+                }
+
                 if(TabMenu == 7){
                     ImGui::BeginChild(OBFUSCATE("##ChildTab7"), ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetContentRegionAvail().y), false);
 
@@ -684,6 +789,14 @@ void *Init_Thread(void *) {
     InitUnityResolve();
     TouchInput::Init();
     LagGame_Init();
+    LagSpam_Init();
+
+    // Hook EffectPlayComponent để capture instance (cho spam)
+    HOOKAU("Project_d.dll", "Assets.Scripts.GameLogic", "EffectPlayComponent", "Awake", 0, hook_spam_Awake, orig_spam_Awake);
+    if (!orig_spam_Awake)
+        HOOKAU("Project_d.dll", "Assets.Scripts.GameLogic", "EffectPlayComponent", "Start", 0, hook_spam_Awake, orig_spam_Awake);
+    // Fallback: capture khi người dùng dùng emoji lần đầu
+    HOOKAU("Project_d.dll", "Assets.Scripts.GameLogic", "EffectPlayComponent", "SendEmojiCommandByIndex", 1, hook_spam_SendEmoji, orig_spam_SendEmoji);
 
     // === ESP Core ===
     get_camera = (void *(*)()) GetMethodOffset("UnityEngine.CoreModule.dll", "UnityEngine", "Camera", "get_main", 0);
