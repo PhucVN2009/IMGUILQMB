@@ -24,7 +24,7 @@ static std::string g_dumpStatus = "";
 static double g_dumpElapsed    = 0.0;  // giây
 static double g_dumpStartTime  = 0.0;
 
-static double GetTimeSeconds() {
+static double GetDumpTime() {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return ts.tv_sec + ts.tv_nsec * 1e-9;
@@ -35,9 +35,9 @@ static void* DumpThread(void*) {
     g_dumpDone     = false;
     g_dumpStatus   = "";
     g_dumpElapsed  = 0.0;
-    g_dumpStartTime = GetTimeSeconds();
+    g_dumpStartTime = GetDumpTime();
     il2cpp_dump(nullptr);
-    g_dumpElapsed  = GetTimeSeconds() - g_dumpStartTime;
+    g_dumpElapsed  = GetDumpTime() - g_dumpStartTime;
     char buf[128];
     snprintf(buf, sizeof(buf), "Hoàn tất! %.1fs | %d fields | %d methods",
              (float)g_dumpElapsed, g_dump_fields, g_dump_methods);
@@ -387,7 +387,7 @@ ImGui::Combo("##ddd", (int*)&Type, "Tắt\0Win\0Lose\0");
                         float pct = (total > 0) ? (float)cur / (float)total : 0.f;
 
                         // Thời gian đang chạy
-                        double elapsed = GetTimeSeconds() - g_dumpStartTime;
+                        double elapsed = GetDumpTime() - g_dumpStartTime;
                         int elMin = (int)(elapsed / 60);
                         int elSec = (int)elapsed % 60;
 
