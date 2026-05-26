@@ -51,6 +51,7 @@ int (*LActorRoot_COM_PLAYERCAMP)(void *instance);
 
 bool (*ActorLinker_IsHostPlayer)(void *instance);
 void *Lactor = nullptr;
+void *Lactor_Root = nullptr;
 
 // LActorRoot
 VInt3 (*get_location)(void *instance);
@@ -737,9 +738,6 @@ static void hook_UpdateTeleportBtnStatus(void* thiz) {
 static void (*set_location_linker)(void* thiz, VInt3 value) = nullptr;
 // LActorRoot.set_location – game logic layer (deterministic simulation)
 static void (*set_location_root)(void* thiz, VInt3 value) = nullptr;
-// Host player's LActorRoot* (set during ESP scan alongside Lactor)
-static void* Lactor_Root = nullptr;
-
 static float g_coordTargetX = 0.f;
 static float g_coordTargetY = 0.f;
 static float g_coordTargetZ = 0.f;
