@@ -62,12 +62,34 @@ static void* g_spamEffectComp                       = nullptr;
 // ─── Function pointers – CChatNetUT (static) ─────────────────────────────
 static void (*spam_ChatEmoji)(int) = nullptr;
 
-// ─── Function pointers – GameInput (Auto-Move) ───────────────────────────
+// ─── Function pointers – GameInput (Auto-Move self) ──────────────────────
 // Vec2 matching Unity Vector2 { float x, y; }
 struct MoveVec2 { float x, y; };
 static void (*move_SendDir)(void* thiz, MoveVec2 start, MoveVec2 end) = nullptr;
 static void (*move_StopInput)(void* thiz)                              = nullptr;
 static void* g_gameInputInst                                           = nullptr;
+
+// ─── AutoMoveAll – điều khiển di chuyển tất cả người chơi ────────────────
+// GameInput.SendMoveDirection(int degree, uint playerId) – private overload
+// Direct RVA (AOV 1.62.1.4): 0x82D9B50
+// ActorLinker.get_playerId() – Direct RVA: 0x8A496D0
+static void         (*move_SendDir_Priv)(void* thiz, int degree, unsigned int playerId) = nullptr;
+static unsigned int (*ama_get_playerId)(void* thiz)                                     = nullptr;
+
+struct AutoMoveAllSettings {
+    bool  enable        = false;
+    float interval      = 0.05f;
+    bool  dirN          = false;
+    bool  dirS          = false;
+    bool  dirE          = false;
+    bool  dirW          = false;
+    bool  useCustom     = false;
+    int   customDeg     = 0;
+    bool  targetSelf    = true;
+    bool  targetAllies  = true;
+    bool  targetEnemies = true;
+};
+AutoMoveAllSettings AutoMoveAll{};
 
 // ─── Hooks ────────────────────────────────────────────────────────────────
 
@@ -121,12 +143,19 @@ static void LagSpam_Init() {
     move_SendDir   = (void(*)(void*,MoveVec2,MoveVec2)) GetMethodOffset(pdll, ns, "GameInput", "SendMoveDirection", 2);
     move_StopInput = (void(*)(void*))                    GetMethodOffset(pdll, ns, "GameInput", "StopInput", 0);
 
+    // AutoMoveAll – direct RVA (private SendMoveDirection overload)
+    if (g_il2cpp_base) {
+        move_SendDir_Priv = (void(*)(void*,int,unsigned int)) (g_il2cpp_base + 0x82D9B50);
+        ama_get_playerId  = (unsigned int(*)(void*))          (g_il2cpp_base + 0x8A496D0);
+    }
+
     LOGI("[LagSpam] emoji=%p dance=%p combo=%p g2=%p g3=%p chat=%p",
          (void*)spam_SendEmojiByIdx, (void*)spam_SendDanceByIdx,
          (void*)spam_SendEmojiDanceByIdx, (void*)spam_Gesture2,
          (void*)spam_Gesture3, (void*)spam_ChatEmoji);
-    LOGI("[AutoMove] SendDir=%p StopInput=%p",
-         (void*)move_SendDir, (void*)move_StopInput);
+    LOGI("[AutoMove] SendDir=%p StopInput=%p SendDirPriv=%p GetPlayerId=%p",
+         (void*)move_SendDir, (void*)move_StopInput,
+         (void*)move_SendDir_Priv, (void*)ama_get_playerId);
 }
 
 // ─── Update – gọi mỗi frame ──────────────────────────────────────────────
@@ -182,4 +211,50 @@ static void LagSpam_Update() {
         move_StopInput(g_gameInputInst);
     }
     prevAutoMove = AutoMove.enable;
+
+    // ── AutoMoveAll (tất cả người chơi) ──────────────────────────────────
+    if (AutoMoveAll.enable && g_gameInputInst && move_SendDir_Priv && ama_get_playerId) {
+        static float lastAll = 0.f;
+        if (now - lastAll >= AutoMoveAll.interval) {
+            lastAll = now;
+            int deg = 0;
+            bool doMove = false;
+            if (AutoMoveAll.useCustom) {
+                deg = AutoMoveAll.customDeg; doMove = true;
+            } else if (AutoMoveAll.dirN) { deg = 0;   doMove = true; }
+            else if (AutoMoveAll.dirS)   { deg = 180; doMove = true; }
+            else if (AutoMoveAll.dirE)   { deg = 90;  doMove = true; }
+            else if (AutoMoveAll.dirW)   { deg = 270; doMove = true; }
+
+            if (doMove) {
+                void* mgr = get_actorManager ? get_actorManager() : nullptr;
+                if (mgr && GetAllHeros_ActorManager) {
+                    void* heroListRaw = (void*)GetAllHeros_ActorManager(mgr);
+                    if (heroListRaw) {
+                        // Same raw layout as Hook.h: [+0x08]=items array ptr, [+0x10]=size
+                        void* arrPtr  = *(void**)((uintptr_t)heroListRaw + 0x08);
+                        int listSize  = *(int*)  ((uintptr_t)heroListRaw + 0x10);
+                        if (arrPtr && (uintptr_t)arrPtr >= 0x1000000 && listSize > 0) {
+                            // Skip managed-array header (0x18 bytes) to reach element 0
+                            void** items = (void**)((uintptr_t)arrPtr + 0x18);
+                            for (int i = 0; i < listSize; i++) {
+                                void* al = items[i * 2 + 1];
+                                if (!al || (uintptr_t)al < 0x1000000) continue;
+                                bool isHost  = IsHostPlayer ? IsHostPlayer(al) : false;
+                                int  camp    = get_objCamp  ? get_objCamp(al)  : 0;
+                                bool isAlly  = !isHost && campDetected && camp == myPlayerCamp;
+                                bool isEnemy = campDetected && camp != myPlayerCamp;
+                                if (isHost  && !AutoMoveAll.targetSelf)    continue;
+                                if (isAlly  && !AutoMoveAll.targetAllies)  continue;
+                                if (isEnemy && !AutoMoveAll.targetEnemies) continue;
+                                unsigned int pid = ama_get_playerId(al);
+                                if (pid == 0) continue;
+                                move_SendDir_Priv(g_gameInputInst, deg, pid);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }

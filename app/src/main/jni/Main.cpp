@@ -777,6 +777,122 @@ ImGui::Combo("##ddd", (int*)&Type, "Tắt\0Win\0Lose\0");
                         move_StopInput ? "OK" : "X",
                         g_gameInputInst ? "OK" : "X");
 
+                    // ── SECTION 5: AUTO-MOVE ALL PLAYERS ─────────────────
+                    ImGui::Spacing();
+                    ImGui::Separator();
+                    ImGui::Spacing();
+                    if (AutoMoveAll.enable)
+                        ImGui::TextColored(ImVec4(1,0.3f,1,1), OBFUSCATE(ICON_FA_USERS " AutoMove TAT CA [DANG CHAY]"));
+                    else
+                        ImGui::TextColored(ImVec4(0.9f,0.5f,1,1), OBFUSCATE(ICON_FA_USERS " AutoMove Tat Ca Nguoi Choi"));
+                    ImGui::Separator();
+
+                    // Cơ chế
+                    ImGui::TextColored(ImVec4(1,0.7f,0,1),
+                        OBFUSCATE("GameInput.SendMoveDir(deg, playerID) – private overload"));
+                    ImGui::TextColored(ImVec4(0.6f,0.6f,0.6f,1),
+                        OBFUSCATE("Giong spam emoji: iteration ActorManager → playerID"));
+
+                    // Pointer status
+                    ImGui::Spacing();
+                    ImGui::TextColored(
+                        (move_SendDir_Priv && ama_get_playerId) ? ImVec4(0.2f,1,0.4f,1) : ImVec4(1,0.4f,0.2f,1),
+                        OBFUSCATE("SendDirPriv:%s  GetPlayerId:%s  GameInput:%s"),
+                        move_SendDir_Priv ? "OK" : "X",
+                        ama_get_playerId  ? "OK" : "X",
+                        g_gameInputInst   ? "OK" : "X");
+
+                    ImGui::Spacing();
+
+                    // Enable + interval
+                    ImGui::PushStyleColor(ImGuiCol_CheckMark, AutoMoveAll.enable ? ImVec4(1,0.3f,1,1) : ImVec4(0.3f,1,0.3f,1));
+                    ImGui::Checkbox(OBFUSCATE("##AMAEn"), &AutoMoveAll.enable);
+                    ImGui::PopStyleColor();
+                    ImGui::SameLine();
+                    ImGui::Text(OBFUSCATE("Bat AutoMove All"));
+                    ImGui::SameLine();
+                    ImGui::PushItemWidth(120);
+                    ImGui::SliderFloat(OBFUSCATE("##AMAInt"), &AutoMoveAll.interval, 0.02f, 0.5f, "%.2fs");
+                    ImGui::PopItemWidth();
+
+                    // Target filter
+                    ImGui::Spacing();
+                    ImGui::Text(OBFUSCATE("Muc tieu:"));
+                    ImGui::SameLine();
+                    ImGui::PushStyleColor(ImGuiCol_CheckMark, ImVec4(0.3f,1,0.7f,1));
+                    ImGui::Checkbox(OBFUSCATE("Ban than"), &AutoMoveAll.targetSelf);
+                    ImGui::SameLine();
+                    ImGui::Checkbox(OBFUSCATE("Dong minh"), &AutoMoveAll.targetAllies);
+                    ImGui::SameLine();
+                    ImGui::Checkbox(OBFUSCATE("Ke dich"), &AutoMoveAll.targetEnemies);
+                    ImGui::PopStyleColor();
+
+                    // 4 direction buttons
+                    ImGui::Spacing();
+                    ImGui::Text(OBFUSCATE("Huong:"));
+
+                    float ama_halfW = (ImGui::GetContentRegionAvail().x - 6) * 0.5f;
+
+                    // North
+                    ImGui::PushStyleColor(ImGuiCol_Button, AutoMoveAll.dirN ? ImVec4(0.7f,0.2f,1,1) : ImGui::GetStyle().Colors[ImGuiCol_Button]);
+                    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.8f,0.3f,1,1));
+                    if (ImGui::Button(OBFUSCATE("  BAC (Truoc) [ALL]  "), ImVec2(-1, 40))) {
+                        AutoMoveAll.dirN = !AutoMoveAll.dirN;
+                        if (AutoMoveAll.dirN) { AutoMoveAll.dirS = false; AutoMoveAll.dirE = false; AutoMoveAll.dirW = false; AutoMoveAll.useCustom = false; }
+                    }
+                    ImGui::PopStyleColor(2);
+
+                    // South
+                    ImGui::PushStyleColor(ImGuiCol_Button, AutoMoveAll.dirS ? ImVec4(0.7f,0.2f,1,1) : ImGui::GetStyle().Colors[ImGuiCol_Button]);
+                    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.8f,0.3f,1,1));
+                    if (ImGui::Button(OBFUSCATE("  NAM (Sau) [ALL]   "), ImVec2(-1, 40))) {
+                        AutoMoveAll.dirS = !AutoMoveAll.dirS;
+                        if (AutoMoveAll.dirS) { AutoMoveAll.dirN = false; AutoMoveAll.dirE = false; AutoMoveAll.dirW = false; AutoMoveAll.useCustom = false; }
+                    }
+                    ImGui::PopStyleColor(2);
+
+                    // West / East row
+                    ImGui::PushStyleColor(ImGuiCol_Button, AutoMoveAll.dirW ? ImVec4(0.7f,0.2f,1,1) : ImGui::GetStyle().Colors[ImGuiCol_Button]);
+                    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.8f,0.3f,1,1));
+                    if (ImGui::Button(OBFUSCATE(" TAY (Trai)[ALL]"), ImVec2(ama_halfW, 40))) {
+                        AutoMoveAll.dirW = !AutoMoveAll.dirW;
+                        if (AutoMoveAll.dirW) { AutoMoveAll.dirN = false; AutoMoveAll.dirS = false; AutoMoveAll.dirE = false; AutoMoveAll.useCustom = false; }
+                    }
+                    ImGui::PopStyleColor(2);
+
+                    ImGui::SameLine();
+
+                    ImGui::PushStyleColor(ImGuiCol_Button, AutoMoveAll.dirE ? ImVec4(0.7f,0.2f,1,1) : ImGui::GetStyle().Colors[ImGuiCol_Button]);
+                    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.8f,0.3f,1,1));
+                    if (ImGui::Button(OBFUSCATE("DONG(Phai)[ALL]"), ImVec2(ama_halfW, 40))) {
+                        AutoMoveAll.dirE = !AutoMoveAll.dirE;
+                        if (AutoMoveAll.dirE) { AutoMoveAll.dirN = false; AutoMoveAll.dirS = false; AutoMoveAll.dirW = false; AutoMoveAll.useCustom = false; }
+                    }
+                    ImGui::PopStyleColor(2);
+
+                    // Stop all button
+                    ImGui::Spacing();
+                    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.5f,0.1f,0.5f,1));
+                    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.7f,0.15f,0.7f,1));
+                    if (ImGui::Button(OBFUSCATE(ICON_FA_STOP " DUNG MOVE TẤT CA"), ImVec2(-1, 40))) {
+                        AutoMoveAll.enable = false;
+                        AutoMoveAll.dirN = AutoMoveAll.dirS = AutoMoveAll.dirE = AutoMoveAll.dirW = AutoMoveAll.useCustom = false;
+                    }
+                    ImGui::PopStyleColor(2);
+
+                    // Custom degree
+                    ImGui::Spacing();
+                    ImGui::Checkbox(OBFUSCATE("Custom Degree (All)"), &AutoMoveAll.useCustom);
+                    if (AutoMoveAll.useCustom) {
+                        AutoMoveAll.dirN = AutoMoveAll.dirS = AutoMoveAll.dirE = AutoMoveAll.dirW = false;
+                        ImGui::SameLine();
+                        ImGui::PushItemWidth(-1);
+                        ImGui::SliderInt(OBFUSCATE("##AMADeg"), &AutoMoveAll.customDeg, 0, 359);
+                        ImGui::PopItemWidth();
+                        ImGui::TextColored(ImVec4(0.8f,0.5f,1,1),
+                            OBFUSCATE("0=Bac  90=Dong  180=Nam  270=Tay"));
+                    }
+
                     ImGui::EndChild();
                 }
 
