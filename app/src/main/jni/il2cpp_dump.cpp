@@ -80,6 +80,13 @@ enum Il2CppTypeEnum : uint8_t {
 static std::unordered_map<int32_t, std::string> g_typeCache;
 static std::unordered_map<int32_t, int>          g_byvalToTypeDef; // byvalTypeIndex → typeDefIndex
 
+// Progress – expose qua header
+volatile int  g_dump_cur     = 0;
+volatile int  g_dump_total   = 0;
+volatile int  g_dump_methods = 0;
+volatile int  g_dump_fields  = 0;
+char          g_dump_class[256] = {};
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 static std::string GetPackageNamez() {
@@ -296,6 +303,9 @@ void il2cpp_dump(void *handle)
     (void)handle;
     g_typeCache.clear();
     g_byvalToTypeDef.clear();
+    g_dump_cur = 0; g_dump_total = 0;
+    g_dump_methods = 0; g_dump_fields = 0;
+    g_dump_class[0] = '\0';
 
     LOGI("=== BẮT ĐẦU DUMP IL2CPP ===");
 
@@ -381,6 +391,14 @@ void il2cpp_dump(void *handle)
     }
     out << "\n";
 
+    // ─── Tính tổng type để hiển thị tiến độ ────────────────────────────────
+    {
+        int total = 0;
+        for (int i = 0; i < imageCount; ++i) total += (int)images[i].typeCount;
+        g_dump_total = total;
+        g_dump_cur   = 0;
+    }
+
     // ─── Vòng lặp chính: từng image → từng type ──────────────────────────────
     for (int i = 0; i < imageCount; ++i) {
         const char* imgName = Unity::metadata_string(&cache->meta, hdr, images[i].nameIndex);
@@ -395,6 +413,11 @@ void il2cpp_dump(void *handle)
             if (!typeName) continue;
 
             bool isValueType = (types[t].bitfield & 0x1) != 0;
+
+            // Cập nhật tiến độ
+            g_dump_cur++;
+            strncpy(g_dump_class, typeName, sizeof(g_dump_class) - 1);
+            g_dump_class[sizeof(g_dump_class) - 1] = '\0';
 
             // Namespace + class header
             out << "\n// Namespace: " << (ns && ns[0] ? ns : "<global>") << "\n";
@@ -425,12 +448,12 @@ void il2cpp_dump(void *handle)
                     std::string fType = GetTypeName(cache, metaReg, types, typeTotal, fields[f].typeIndex);
 
                     if (!hasOff || rawOffset <= 0) {
-                        // static field hoặc không tìm được offset
                         out << "    public static " << fType << " " << fName << ";\n";
                     } else {
                         out << "    public " << fType << " " << fName
                             << "; // 0x" << std::hex << rawOffset << std::dec << "\n";
                     }
+                    g_dump_fields++;
                 }
                 out << "\n";
             }
@@ -498,6 +521,7 @@ void il2cpp_dump(void *handle)
                         }
                     }
                     out << ") { }\n\n";
+                    g_dump_methods++;
                 }
             }
 

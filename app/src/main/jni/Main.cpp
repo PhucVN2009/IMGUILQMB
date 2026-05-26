@@ -18,17 +18,31 @@
 #include "login.h"
 #include "il2cpp_dump.h"
 
-static bool g_dumpRunning = false;
-static bool g_dumpDone = false;
+static bool g_dumpRunning  = false;
+static bool g_dumpDone     = false;
 static std::string g_dumpStatus = "";
+static double g_dumpElapsed    = 0.0;  // giây
+static double g_dumpStartTime  = 0.0;
+
+static double GetTimeSeconds() {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return ts.tv_sec + ts.tv_nsec * 1e-9;
+}
 
 static void* DumpThread(void*) {
-    g_dumpRunning = true;
-    g_dumpDone = false;
-    g_dumpStatus = "Đang dump...";
+    g_dumpRunning  = true;
+    g_dumpDone     = false;
+    g_dumpStatus   = "";
+    g_dumpElapsed  = 0.0;
+    g_dumpStartTime = GetTimeSeconds();
     il2cpp_dump(nullptr);
-    g_dumpStatus = "Dump hoàn tất! File lưu tại Android/data/<pkg>/<pkg> [ARM64].cs";
-    g_dumpDone = true;
+    g_dumpElapsed  = GetTimeSeconds() - g_dumpStartTime;
+    char buf[128];
+    snprintf(buf, sizeof(buf), "Hoàn tất! %.1fs | %d fields | %d methods",
+             (float)g_dumpElapsed, g_dump_fields, g_dump_methods);
+    g_dumpStatus  = buf;
+    g_dumpDone    = true;
     g_dumpRunning = false;
     return nullptr;
 }
@@ -360,32 +374,119 @@ ImGui::Combo("##ddd", (int*)&Type, "Tắt\0Win\0Lose\0");
                     ImGui::Separator();
                     ImGui::Spacing();
 
-                    ImGui::TextWrapped(OBFUSCATE("Dump toàn bộ class/method/field từ metadata của game ra file .cs"));
-                    ImGui::TextWrapped(OBFUSCATE("File được lưu tại: Android/data/<package>/<package> [ARM64].cs"));
-                    ImGui::Spacing();
-                    ImGui::Separator();
-                    ImGui::Spacing();
+                    if (!g_dumpRunning && !g_dumpDone) {
+                        ImGui::TextWrapped(OBFUSCATE("Dump toàn bộ class/method/field từ metadata ra file .cs"));
+                        ImGui::TextColored(ImVec4(0.6f,0.6f,0.6f,1), OBFUSCATE("Android/data/<pkg>/<pkg> [ARM64].cs"));
+                        ImGui::Spacing();
+                    }
 
                     if (g_dumpRunning) {
-                        ImGui::TextColored(ImVec4(1,1,0,1), OBFUSCATE("Đang thực hiện dump, vui lòng chờ..."));
-                    } else {
-                        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.15f, 0.55f, 0.15f, 1.0f));
-                        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.2f, 0.7f, 0.2f, 1.0f));
-                        if (ImGui::Button(OBFUSCATE(ICON_FA_FILE " Bắt Đầu Dump"), ImVec2(-1, 50))) {
+                        // ── Tiến độ ──────────────────────────────────────────
+                        int cur   = g_dump_cur;
+                        int total = g_dump_total;
+                        float pct = (total > 0) ? (float)cur / (float)total : 0.f;
+
+                        // Thời gian đang chạy
+                        double elapsed = GetTimeSeconds() - g_dumpStartTime;
+                        int elMin = (int)(elapsed / 60);
+                        int elSec = (int)elapsed % 60;
+
+                        ImGui::TextColored(ImVec4(1,1,0,1), OBFUSCATE("Dang dump... %02d:%02d"), elMin, elSec);
+                        ImGui::Spacing();
+
+                        // Thanh tiến độ
+                        char progLabel[64];
+                        snprintf(progLabel, sizeof(progLabel), "%.1f%% (%d / %d)", pct * 100.f, cur, total);
+                        ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.2f, 0.8f, 0.3f, 1.f));
+                        ImGui::ProgressBar(pct, ImVec2(-1, 18), progLabel);
+                        ImGui::PopStyleColor();
+
+                        ImGui::Spacing();
+
+                        // Tên class đang xử lý
+                        if (g_dump_class[0] != '\0') {
+                            ImGui::TextColored(ImVec4(0.5f,0.9f,1,1), OBFUSCATE("Class: %s"), g_dump_class);
+                        }
+
+                        ImGui::Spacing();
+
+                        // Stats realtime
+                        ImGui::BeginTable(OBFUSCATE("##dumpStats"), 2);
+                        ImGui::TableNextColumn();
+                        ImGui::TextColored(ImVec4(0.9f,0.7f,0.2f,1), OBFUSCATE("Fields:"));
+                        ImGui::TableNextColumn();
+                        ImGui::Text("%d", g_dump_fields);
+                        ImGui::TableNextColumn();
+                        ImGui::TextColored(ImVec4(0.9f,0.7f,0.2f,1), OBFUSCATE("Methods:"));
+                        ImGui::TableNextColumn();
+                        ImGui::Text("%d", g_dump_methods);
+                        ImGui::EndTable();
+
+                        // Ước tính thời gian còn lại
+                        if (cur > 0 && pct < 1.f && elapsed > 1.0) {
+                            double remaining = elapsed / pct * (1.0 - pct);
+                            int rmMin = (int)(remaining / 60);
+                            int rmSec = (int)remaining % 60;
+                            ImGui::Spacing();
+                            ImGui::TextColored(ImVec4(0.7f,0.7f,0.7f,1),
+                                OBFUSCATE("Con lai ~%02d:%02d"), rmMin, rmSec);
+                        }
+
+                    } else if (g_dumpDone) {
+                        // ── Hoàn tất ──────────────────────────────────────────
+                        ImGui::TextColored(ImVec4(0,1,0.5f,1), OBFUSCATE("HOAN TAT!"));
+                        ImGui::Spacing();
+                        ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.2f, 0.8f, 0.3f, 1.f));
+                        ImGui::ProgressBar(1.0f, ImVec2(-1, 18), "100%");
+                        ImGui::PopStyleColor();
+                        ImGui::Spacing();
+
+                        // Kết quả
+                        ImGui::BeginTable(OBFUSCATE("##dumpResult"), 2);
+                        ImGui::TableNextColumn();
+                        ImGui::TextColored(ImVec4(0.9f,0.7f,0.2f,1), OBFUSCATE("Thoi gian:"));
+                        ImGui::TableNextColumn();
+                        ImGui::Text("%.1fs", (float)g_dumpElapsed);
+                        ImGui::TableNextColumn();
+                        ImGui::TextColored(ImVec4(0.9f,0.7f,0.2f,1), OBFUSCATE("Fields:"));
+                        ImGui::TableNextColumn();
+                        ImGui::Text("%d", g_dump_fields);
+                        ImGui::TableNextColumn();
+                        ImGui::TextColored(ImVec4(0.9f,0.7f,0.2f,1), OBFUSCATE("Methods:"));
+                        ImGui::TableNextColumn();
+                        ImGui::Text("%d", g_dump_methods);
+                        ImGui::TableNextColumn();
+                        ImGui::TextColored(ImVec4(0.9f,0.7f,0.2f,1), OBFUSCATE("Classes:"));
+                        ImGui::TableNextColumn();
+                        ImGui::Text("%d", g_dump_total);
+                        ImGui::EndTable();
+
+                        ImGui::Spacing();
+                        ImGui::TextColored(ImVec4(0.6f,0.6f,0.6f,1),
+                            OBFUSCATE("Android/data/<pkg>/<pkg> [ARM64].cs"));
+                        ImGui::Spacing();
+
+                        // Nút dump lại
+                        ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.15f,0.45f,0.15f,1));
+                        ImGui::PushStyleColor(ImGuiCol_ButtonHovered,  ImVec4(0.2f, 0.6f, 0.2f, 1));
+                        if (ImGui::Button(OBFUSCATE(ICON_FA_FILE " Dump Lai"), ImVec2(-1, 40))) {
+                            g_dumpDone = false;
                             pthread_t tid;
                             pthread_create(&tid, nullptr, DumpThread, nullptr);
                             pthread_detach(tid);
                         }
                         ImGui::PopStyleColor(2);
-                    }
 
-                    ImGui::Spacing();
-                    if (!g_dumpStatus.empty()) {
-                        if (g_dumpDone) {
-                            ImGui::TextColored(ImVec4(0,1,0,1), OBFUSCATE("%s"), g_dumpStatus.c_str());
-                        } else {
-                            ImGui::TextColored(ImVec4(1,1,0,1), OBFUSCATE("%s"), g_dumpStatus.c_str());
+                    } else {
+                        // ── Chưa dump ──────────────────────────────────────────
+                        ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.15f, 0.55f, 0.15f, 1.0f));
+                        ImGui::PushStyleColor(ImGuiCol_ButtonHovered,  ImVec4(0.2f,  0.7f,  0.2f, 1.0f));
+                        if (ImGui::Button(OBFUSCATE(ICON_FA_FILE " Bat Dau Dump"), ImVec2(-1, 55))) {
+                            pthread_t tid;
+                            pthread_create(&tid, nullptr, DumpThread, nullptr);
+                            pthread_detach(tid);
                         }
+                        ImGui::PopStyleColor(2);
                     }
 
                     ImGui::EndChild();
