@@ -16,6 +16,23 @@
 #include <chrono>
 #include <iomanip>
 #include "login.h"
+#include "il2cpp_dump.h"
+
+static bool g_dumpRunning = false;
+static bool g_dumpDone = false;
+static std::string g_dumpStatus = "";
+
+static void* DumpThread(void*) {
+    g_dumpRunning = true;
+    g_dumpDone = false;
+    g_dumpStatus = "Đang dump...";
+    il2cpp_dump(nullptr);
+    g_dumpStatus = "Dump hoàn tất! File lưu tại Android/data/<pkg>/<pkg> [ARM64].cs";
+    g_dumpDone = true;
+    g_dumpRunning = false;
+    return nullptr;
+}
+
 static bool keyLoaded = true;
 static bool isLogin = true;
 static bool showLoginSuccess = false;
@@ -205,6 +222,10 @@ EGLBoolean _eglSwapBuffers(EGLDisplay dpy, EGLSurface surface) {
                 if(ImGui::Button(OBFUSCATE(ICON_FA_WRENCH " Debug"), ImVec2(170, 60))) TabMenu = 7;
                 ImGui::PopStyleColor();
 
+                ImGui::PushStyleColor(ImGuiCol_Button, TabMenu == 8 ? ImGui::GetStyle().Colors[ImGuiCol_ButtonHovered] : ImGui::GetStyle().Colors[ImGuiCol_Button]);
+                if(ImGui::Button(OBFUSCATE(ICON_FA_FILE " Dump IL2CPP"), ImVec2(170, 60))) TabMenu = 8;
+                ImGui::PopStyleColor();
+
                 ImGui::NextColumn();
 
                 if(TabMenu == 1){
@@ -328,6 +349,44 @@ ImGui::Combo("##ddd", (int*)&Type, "Tắt\0Win\0Lose\0");
 
                     ImGui::Text(OBFUSCATE("Version: 2.3 Release - Patch: 1.62.1.4"));
                     ImGui::Text(OBFUSCATE("Auto-Update via UnityInline.h"));
+
+                    ImGui::EndChild();
+                }
+
+                if(TabMenu == 8){
+                    ImGui::BeginChild(OBFUSCATE("##ChildTab8"), ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetContentRegionAvail().y), false);
+
+                    ImGui::TextColored(ImVec4(1,0.8f,0,1), OBFUSCATE("DUMP IL2CPP"));
+                    ImGui::Separator();
+                    ImGui::Spacing();
+
+                    ImGui::TextWrapped(OBFUSCATE("Dump toàn bộ class/method/field từ metadata của game ra file .cs"));
+                    ImGui::TextWrapped(OBFUSCATE("File được lưu tại: Android/data/<package>/<package> [ARM64].cs"));
+                    ImGui::Spacing();
+                    ImGui::Separator();
+                    ImGui::Spacing();
+
+                    if (g_dumpRunning) {
+                        ImGui::TextColored(ImVec4(1,1,0,1), OBFUSCATE("Đang thực hiện dump, vui lòng chờ..."));
+                    } else {
+                        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.15f, 0.55f, 0.15f, 1.0f));
+                        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.2f, 0.7f, 0.2f, 1.0f));
+                        if (ImGui::Button(OBFUSCATE(ICON_FA_FILE " Bắt Đầu Dump"), ImVec2(-1, 50))) {
+                            pthread_t tid;
+                            pthread_create(&tid, nullptr, DumpThread, nullptr);
+                            pthread_detach(tid);
+                        }
+                        ImGui::PopStyleColor(2);
+                    }
+
+                    ImGui::Spacing();
+                    if (!g_dumpStatus.empty()) {
+                        if (g_dumpDone) {
+                            ImGui::TextColored(ImVec4(0,1,0,1), OBFUSCATE("%s"), g_dumpStatus.c_str());
+                        } else {
+                            ImGui::TextColored(ImVec4(1,1,0,1), OBFUSCATE("%s"), g_dumpStatus.c_str());
+                        }
+                    }
 
                     ImGui::EndChild();
                 }

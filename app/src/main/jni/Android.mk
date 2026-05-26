@@ -75,6 +75,7 @@ LOCAL_SRC_FILES := Main.cpp \
     TuanMeta/Tools/Substrate/SubstratePosixMemory.cpp \
     TuanMeta/Tools/Substrate/SymbolFinder.cpp \
     And64InlineHook/And64InlineHook.cpp \
+    il2cpp_dump.cpp \
     #Zygisk.hpp \
 
 LOCAL_STATIC_LIBRARIES := libdobby libcurl libssl libcrypto libfoxcheats
