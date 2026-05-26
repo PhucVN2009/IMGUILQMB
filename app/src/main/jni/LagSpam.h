@@ -134,10 +134,11 @@ static float LagSpam_Now() {
 }
 
 // ─── Private-method resolver ─────────────────────────────────────────────
-// Finds the PRIVATE overload of a method by matching name + parameterCount
-// + checking (flags & 0x07) == 0x01 (METHOD_ATTRIBUTE_MEMBER_ACCESS_MASK
-//   with value PRIVATE).  Returns the runtime address of the method or
-//   nullptr if not found.
+// Finds the PRIVATE overload of a method by scanning metadata for the
+// private-flag match (METHOD_ATTRIBUTE_MEMBER_ACCESS_MASK & 0x07 == 0x01).
+// Falls back to the 2nd occurrence if no private flag match is found.
+// Returns the absolute runtime address (method_va from the in-memory
+// method-pointer table, which is already the runtime VA).
 static void* LagSpam_FindPrivateMethod(const char* image, const char* ns,
                                        const char* klass, const char* method,
                                        int argsCount) {
@@ -190,23 +191,38 @@ static void* LagSpam_FindPrivateMethod(const char* image, const char* ns,
             if (m_start < 0 || m_start >= method_total) continue;
             if (m_end > method_total) m_end = method_total;
 
+            // Two-pass: prefer private flag; fall back to 2nd overload by count
+            int idx_private = -1;   // first match with private flag
+            int idx_second  = -1;   // second match overall (any access)
+            int match_count = 0;
+
             for (int m = m_start; m < m_end; m++) {
                 const char* mn = Unity::metadata_string(meta, hdr, methods[m].nameIndex);
                 if (!mn || strcmp(mn, method) != 0) continue;
                 if (argsCount >= 0 && methods[m].parameterCount != (uint16_t)argsCount) continue;
-                // Check private flag: METHOD_ATTRIBUTE_MEMBER_ACCESS_MASK = 0x0007
-                // Private = 0x0001
-                if ((methods[m].flags & 0x0007u) != 0x0001u) continue;
 
-                // Found the private overload – resolve its address
-                uint64_t method_va = 0;
-                if (!Unity::get_method_ptr(&cache->unity, &cache->data_secs, &cache->exec_secs,
-                                           cache->code_reg_va, image,
-                                           methods[m].token, &method_va)) {
-                    return nullptr;
-                }
-                return (void*)(g_il2cpp_base + (uintptr_t)(method_va - cache->image_base));
+                match_count++;
+                if ((methods[m].flags & 0x0007u) == 0x0001u && idx_private < 0)
+                    idx_private = m;
+                if (match_count == 2 && idx_second < 0)
+                    idx_second = m;
             }
+
+            // Pick best candidate: private flag first, 2nd match as fallback
+            int target = (idx_private >= 0) ? idx_private :
+                         (idx_second  >= 0) ? idx_second  : -1;
+            if (target < 0) continue;
+
+            // Resolve runtime address from in-memory method-pointer table.
+            // method_va IS already the absolute runtime VA — return it directly.
+            uint64_t method_va = 0;
+            if (!Unity::get_method_ptr(&cache->unity, &cache->data_secs, &cache->exec_secs,
+                                       cache->code_reg_va, image,
+                                       methods[target].token, &method_va)) {
+                return nullptr;
+            }
+            if (method_va < 0x1000000ull) return nullptr; // sanity: reject stub/null values
+            return (void*)(uintptr_t)method_va;
         }
     }
     return nullptr;
@@ -314,7 +330,9 @@ static void LagSpam_Update() {
     }
 
     if (AutoMoveAll.enable && g_gameInputInst && move_SendDir_Priv && ama_get_playerId) {
-        // Validate g_gameInputInst vtable before using it
+        // Validate g_gameInputInst address range before ANY dereference
+        if ((uintptr_t)g_gameInputInst < 0x1000000ull) goto ama_done;
+        // Validate vtable to guard against stale instance pointer
         uint64_t gi_vtable = *(uint64_t*)g_gameInputInst;
         if ((gi_vtable & 0x0000FFFFFFFFFFFFull) < 0x1000000ull) goto ama_done;
 

@@ -898,6 +898,42 @@ ImGui::Combo("##ddd", (int*)&Type, "Tắt\0Win\0Lose\0");
                             OBFUSCATE("0=Bac  90=Dong  180=Nam  270=Tay"));
                     }
 
+                    // ── SECTION 6: MINIMAP TELEPORT BUTTON ───────────────
+                    ImGui::Spacing();
+                    ImGui::Separator();
+                    ImGui::Spacing();
+                    if (g_forceTrainingTeleport)
+                        ImGui::TextColored(ImVec4(0.2f,1,0.8f,1), OBFUSCATE(ICON_FA_MAP_MARKER " Nut Di Chuyen Minimap [DANG BAT]"));
+                    else
+                        ImGui::TextColored(ImVec4(0.5f,0.9f,0.8f,1), OBFUSCATE(ICON_FA_MAP_MARKER " Nut Di Chuyen Minimap (Dau Luyen)"));
+                    ImGui::Separator();
+
+                    ImGui::TextColored(ImVec4(1,0.7f,0,1),
+                        OBFUSCATE("Hien thi nut tele minimap cua Dau Luyen vao TẤT CA che do"));
+                    ImGui::TextColored(ImVec4(0.6f,0.6f,0.6f,1),
+                        OBFUSCATE("Hook IsTrainingMode() → luon true khi bat"));
+
+                    ImGui::Spacing();
+
+                    ImGui::PushStyleColor(ImGuiCol_CheckMark, g_forceTrainingTeleport ? ImVec4(0.2f,1,0.8f,1) : ImVec4(0.3f,1,0.3f,1));
+                    ImGui::PushStyleColor(ImGuiCol_Button,
+                        g_forceTrainingTeleport ? ImVec4(0.1f,0.5f,0.5f,1) : ImGui::GetStyle().Colors[ImGuiCol_Button]);
+                    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.2f,0.7f,0.7f,1));
+                    if (ImGui::Button(
+                            g_forceTrainingTeleport
+                                ? OBFUSCATE(ICON_FA_MAP_MARKER " [BAT] Minimap Teleport Btn")
+                                : OBFUSCATE(ICON_FA_MAP_MARKER " [TAT] Bat Minimap Teleport Btn"),
+                            ImVec2(-1, 44))) {
+                        g_forceTrainingTeleport = !g_forceTrainingTeleport;
+                    }
+                    ImGui::PopStyleColor(3);
+
+                    ImGui::Spacing();
+                    ImGui::TextColored(
+                        orig_IsTrainingMode ? ImVec4(0.2f,1,0.4f,1) : ImVec4(1,0.4f,0.2f,1),
+                        OBFUSCATE("IsTrainingMode hook: %s"),
+                        orig_IsTrainingMode ? "OK" : "X (chua resolve)");
+
                     ImGui::EndChild();
                 }
 
@@ -1056,6 +1092,9 @@ void *Init_Thread(void *) {
 
     // Auto-Move: capture GameInput instance mỗi frame
     HOOKAU("Project_d.dll", "Assets.Scripts.GameLogic", "GameInput", "UpdateFrame", 0, hook_move_UpdateFrame, orig_move_UpdateFrame);
+
+    // Minimap teleport button – hook IsTrainingMode so button is visible in all modes
+    HOOKAU("Project.Plugins_d.dll", "NucleusDrive.Share", "SimpleLevelContext", "IsTrainingMode", 0, hook_IsTrainingMode, orig_IsTrainingMode);
 
     // === ESP Core ===
     get_camera = (void *(*)()) GetMethodOffset("UnityEngine.CoreModule.dll", "UnityEngine", "Camera", "get_main", 0);

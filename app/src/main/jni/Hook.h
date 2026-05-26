@@ -706,6 +706,16 @@ void MiniMapSys(void *instance) {
   _MiniMapSys(instance);
 }
 
+// ─── Minimap Teleport Button (always show in all modes) ──────────────────
+// Hooks SimpleLevelContext.IsTrainingMode() to always return true so the
+// minimap teleport button (normally practice-mode only) is shown everywhere.
+static bool g_forceTrainingTeleport = false;
+static bool (*orig_IsTrainingMode)(void* thiz) = nullptr;
+static bool hook_IsTrainingMode(void* thiz) {
+    if (g_forceTrainingTeleport) return true;
+    return orig_IsTrainingMode ? orig_IsTrainingMode(thiz) : false;
+}
+
 void drawTextInt(ImVec2 position, int value, ImDrawList *draw) {
   char format_text[1024];
   sprintf(format_text, "%d", value);
