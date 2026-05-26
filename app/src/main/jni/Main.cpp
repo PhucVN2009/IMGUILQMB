@@ -665,6 +665,118 @@ ImGui::Combo("##ddd", (int*)&Type, "Tắt\0Win\0Lose\0");
                     ImGui::TextColored(ImVec4(0.45f,0.45f,0.45f,1),
                         OBFUSCATE("SendEmojiMsgInTeam: %s"), spam_ChatEmoji ? "OK" : "X (chua resolve)");
 
+                    // ── SECTION 4: AUTO-MOVEMENT ──────────────────────────
+                    ImGui::Spacing();
+                    ImGui::Separator();
+                    ImGui::Spacing();
+                    if (AutoMove.enable)
+                        ImGui::TextColored(ImVec4(0.2f,0.8f,1,1), OBFUSCATE(ICON_FA_ARROWS " Auto-Movement [DANG CHAY]"));
+                    else
+                        ImGui::TextColored(ImVec4(0.5f,0.9f,1,1), OBFUSCATE(ICON_FA_ARROWS " Auto-Movement (chi nhan vat cua ban)"));
+                    ImGui::Separator();
+
+                    // Cảnh báo kỹ thuật
+                    ImGui::TextColored(ImVec4(1,0.7f,0,1),
+                        OBFUSCATE("Lockstep cmd mang playerID cua ban – chi move tuong ban"));
+
+                    // Instance status
+                    ImGui::Spacing();
+                    if (g_gameInputInst)
+                        ImGui::TextColored(ImVec4(0.2f,1,0.4f,1), OBFUSCATE("GameInput: CAPTURED  OK"));
+                    else
+                        ImGui::TextColored(ImVec4(1,0.6f,0,1),    OBFUSCATE("GameInput: CHUA (vao tran se tu dong capture)"));
+
+                    ImGui::Spacing();
+
+                    // Enable + interval
+                    ImGui::PushStyleColor(ImGuiCol_CheckMark, AutoMove.enable ? ImVec4(0.2f,0.8f,1,1) : ImVec4(0.3f,1,0.3f,1));
+                    ImGui::Checkbox(OBFUSCATE("##AutoMoveEn"), &AutoMove.enable);
+                    ImGui::PopStyleColor();
+                    ImGui::SameLine();
+                    ImGui::Text(OBFUSCATE("Bat Auto-Move"));
+                    ImGui::SameLine();
+                    ImGui::Text(OBFUSCATE("  Interval:"));
+                    ImGui::SameLine();
+                    ImGui::PushItemWidth(130);
+                    ImGui::SliderFloat(OBFUSCATE("##AutoMoveInt"), &AutoMove.interval, 0.02f, 0.5f, "%.2fs");
+                    ImGui::PopItemWidth();
+
+                    // 4 direction buttons (radio behaviour – check one → uncheck others)
+                    ImGui::Spacing();
+                    ImGui::Text(OBFUSCATE("Huong di chuyen:"));
+                    ImGui::Spacing();
+
+                    // North
+                    ImGui::PushStyleColor(ImGuiCol_Button,        AutoMove.dirN ? ImVec4(0.1f,0.6f,1,1)   : ImGui::GetStyle().Colors[ImGuiCol_Button]);
+                    ImGui::PushStyleColor(ImGuiCol_ButtonHovered,  ImVec4(0.2f,0.7f,1,1));
+                    if (ImGui::Button(OBFUSCATE("  BAC (Truoc)  "), ImVec2(-1, 44))) {
+                        AutoMove.dirN = !AutoMove.dirN;
+                        if (AutoMove.dirN) { AutoMove.dirS = false; AutoMove.dirE = false; AutoMove.dirW = false; AutoMove.useCustom = false; }
+                    }
+                    ImGui::PopStyleColor(2);
+
+                    // South
+                    ImGui::PushStyleColor(ImGuiCol_Button,        AutoMove.dirS ? ImVec4(0.1f,0.6f,1,1)   : ImGui::GetStyle().Colors[ImGuiCol_Button]);
+                    ImGui::PushStyleColor(ImGuiCol_ButtonHovered,  ImVec4(0.2f,0.7f,1,1));
+                    if (ImGui::Button(OBFUSCATE("  NAM  (Sau)   "), ImVec2(-1, 44))) {
+                        AutoMove.dirS = !AutoMove.dirS;
+                        if (AutoMove.dirS) { AutoMove.dirN = false; AutoMove.dirE = false; AutoMove.dirW = false; AutoMove.useCustom = false; }
+                    }
+                    ImGui::PopStyleColor(2);
+
+                    // East / West row
+                    float halfW = (ImGui::GetContentRegionAvail().x - 6) * 0.5f;
+
+                    ImGui::PushStyleColor(ImGuiCol_Button,        AutoMove.dirW ? ImVec4(0.1f,0.6f,1,1)   : ImGui::GetStyle().Colors[ImGuiCol_Button]);
+                    ImGui::PushStyleColor(ImGuiCol_ButtonHovered,  ImVec4(0.2f,0.7f,1,1));
+                    if (ImGui::Button(OBFUSCATE(" TAY (Trai) "), ImVec2(halfW, 44))) {
+                        AutoMove.dirW = !AutoMove.dirW;
+                        if (AutoMove.dirW) { AutoMove.dirN = false; AutoMove.dirS = false; AutoMove.dirE = false; AutoMove.useCustom = false; }
+                    }
+                    ImGui::PopStyleColor(2);
+
+                    ImGui::SameLine();
+
+                    ImGui::PushStyleColor(ImGuiCol_Button,        AutoMove.dirE ? ImVec4(0.1f,0.6f,1,1)   : ImGui::GetStyle().Colors[ImGuiCol_Button]);
+                    ImGui::PushStyleColor(ImGuiCol_ButtonHovered,  ImVec4(0.2f,0.7f,1,1));
+                    if (ImGui::Button(OBFUSCATE("DONG (Phai)"), ImVec2(halfW, 44))) {
+                        AutoMove.dirE = !AutoMove.dirE;
+                        if (AutoMove.dirE) { AutoMove.dirN = false; AutoMove.dirS = false; AutoMove.dirW = false; AutoMove.useCustom = false; }
+                    }
+                    ImGui::PopStyleColor(2);
+
+                    // Stop button
+                    ImGui::Spacing();
+                    ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.5f,0.1f,0.1f,1));
+                    ImGui::PushStyleColor(ImGuiCol_ButtonHovered,  ImVec4(0.7f,0.15f,0.15f,1));
+                    if (ImGui::Button(OBFUSCATE(ICON_FA_STOP " DUNG DI CHUYEN"), ImVec2(-1, 40))) {
+                        AutoMove.enable = false;
+                        AutoMove.dirN = AutoMove.dirS = AutoMove.dirE = AutoMove.dirW = AutoMove.useCustom = false;
+                        if (g_gameInputInst && move_StopInput) move_StopInput(g_gameInputInst);
+                    }
+                    ImGui::PopStyleColor(2);
+
+                    // Custom angle
+                    ImGui::Spacing();
+                    ImGui::Checkbox(OBFUSCATE("Custom Degree"), &AutoMove.useCustom);
+                    if (AutoMove.useCustom) {
+                        if (AutoMove.useCustom) { AutoMove.dirN = AutoMove.dirS = AutoMove.dirE = AutoMove.dirW = false; }
+                        ImGui::SameLine();
+                        ImGui::PushItemWidth(-1);
+                        ImGui::SliderInt(OBFUSCATE("##AutoMoveDeg"), &AutoMove.customDeg, 0, 359);
+                        ImGui::PopItemWidth();
+                        ImGui::TextColored(ImVec4(0.5f,0.8f,1,1),
+                            OBFUSCATE("0=Bac  90=Dong  180=Nam  270=Tay"));
+                    }
+
+                    // Status
+                    ImGui::Spacing();
+                    ImGui::TextColored(ImVec4(0.45f,0.45f,0.45f,1),
+                        OBFUSCATE("SendMoveDir:%s  StopInput:%s  GameInput:%s"),
+                        move_SendDir   ? "OK" : "X",
+                        move_StopInput ? "OK" : "X",
+                        g_gameInputInst ? "OK" : "X");
+
                     ImGui::EndChild();
                 }
 
@@ -797,6 +909,9 @@ void *Init_Thread(void *) {
         HOOKAU("Project_d.dll", "Assets.Scripts.GameLogic", "EffectPlayComponent", "Start", 0, hook_spam_Awake, orig_spam_Awake);
     // Fallback: capture khi người dùng dùng emoji lần đầu
     HOOKAU("Project_d.dll", "Assets.Scripts.GameLogic", "EffectPlayComponent", "SendEmojiCommandByIndex", 1, hook_spam_SendEmoji, orig_spam_SendEmoji);
+
+    // Auto-Move: capture GameInput instance mỗi frame
+    HOOKAU("Project_d.dll", "Assets.Scripts.GameLogic", "GameInput", "UpdateFrame", 0, hook_move_UpdateFrame, orig_move_UpdateFrame);
 
     // === ESP Core ===
     get_camera = (void *(*)()) GetMethodOffset("UnityEngine.CoreModule.dll", "UnityEngine", "Camera", "get_main", 0);
