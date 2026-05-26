@@ -184,6 +184,7 @@ EGLBoolean _eglSwapBuffers(EGLDisplay dpy, EGLSurface surface) {
     } else {
       /*  if (!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) {*/
             DrawESP(ImGui::GetBackgroundDrawList());
+            DrawAutoMoveAllDebug(ImGui::GetBackgroundDrawList(), (float)glWidth, (float)glHeight);
             if (ShowMenu) {
                 ImGui::OpenPopup(OBFUSCATE("##MenuMod"));
                 ImGui::SetNextWindowSize(ImVec2(900, 0));
@@ -773,9 +774,13 @@ ImGui::Combo("##ddd", (int*)&Type, "Tắt\0Win\0Lose\0");
                     ImGui::Spacing();
                     ImGui::TextColored(ImVec4(0.45f,0.45f,0.45f,1),
                         OBFUSCATE("SendMoveDir:%s  StopInput:%s  GameInput:%s"),
-                        move_SendDir   ? "OK" : "X",
-                        move_StopInput ? "OK" : "X",
+                        move_SendDir    ? "OK" : "X",
+                        move_StopInput  ? "OK" : "X",
                         g_gameInputInst ? "OK" : "X");
+                    ImGui::TextColored(ImVec4(0.45f,0.45f,0.45f,1),
+                        OBFUSCATE("SendDirPriv(auto):%s  GetPlayerId(auto):%s"),
+                        move_SendDir_Priv ? "OK" : "X (chua resolve)",
+                        ama_get_playerId  ? "OK" : "X (chua resolve)");
 
                     // ── SECTION 5: AUTO-MOVE ALL PLAYERS ─────────────────
                     ImGui::Spacing();
@@ -951,6 +956,29 @@ ImGui::Combo("##ddd", (int*)&Type, "Tắt\0Win\0Lose\0");
                             ImGui::Text("  Talent: cd=%d  Heal: cd=%d", collected_actors[di].talentCD, collected_actors[di].healCD);
                             break;
                         }
+                    }
+                    ImGui::Separator();
+
+                    // ── AutoMoveAll Debug ─────────────────────────────────
+                    ImGui::TextColored(ImVec4(0.8f,0.4f,1,1), OBFUSCATE("AUTO-MOVE-ALL DEBUG"));
+                    ImGui::Text(OBFUSCATE("SendDirPriv: %p"), (void*)move_SendDir_Priv);
+                    ImGui::Text(OBFUSCATE("GetPlayerId: %p"), (void*)ama_get_playerId);
+                    ImGui::Text(OBFUSCATE("AMAActive: %s  Deg: %d  Actors: %d"),
+                        g_amaDebugActive ? "YES" : "NO", g_amaDebugDeg, g_amaDebugCount);
+                    if (g_amaDebugCount > 0) {
+                        ImGui::Separator();
+                        ImGui::Text(OBFUSCATE("  [i] PID      CAMP  HOST  TARG"));
+                        for (int _di = 0; _di < g_amaDebugCount; _di++) {
+                            const AMADebugEntry& _e = g_amaDebugEntries[_di];
+                            ImGui::TextColored(
+                                _e.targeted ? ImVec4(0.3f,1,0.3f,1) : ImVec4(0.5f,0.5f,0.5f,1),
+                                OBFUSCATE("  [%d] %04u     %d     %s     %s"),
+                                _di, _e.playerID, _e.camp,
+                                _e.isHost   ? "Y" : "N",
+                                _e.targeted ? "Y" : "N");
+                        }
+                    } else {
+                        ImGui::TextColored(ImVec4(0.5f,0.5f,0.5f,1), OBFUSCATE("  (chua co data – bat AMAAll trong tran)"));
                     }
                     ImGui::Separator();
 

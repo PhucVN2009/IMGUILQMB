@@ -71,8 +71,8 @@ static void* g_gameInputInst                                           = nullptr
 
 // ─── AutoMoveAll – điều khiển di chuyển tất cả người chơi ────────────────
 // GameInput.SendMoveDirection(int degree, uint playerId) – private overload
-// Direct RVA (AOV 1.62.1.4): 0x82D9B50
-// ActorLinker.get_playerId() – Direct RVA: 0x8A496D0
+// Resolved via LagSpam_FindPrivateMethod (not hardcoded RVA)
+// ActorLinker.get_playerId() – unique method, resolved via GetMethodOffset
 static void         (*move_SendDir_Priv)(void* thiz, int degree, unsigned int playerId) = nullptr;
 static unsigned int (*ama_get_playerId)(void* thiz)                                     = nullptr;
 
@@ -90,6 +90,18 @@ struct AutoMoveAllSettings {
     bool  targetEnemies = true;
 };
 AutoMoveAllSettings AutoMoveAll{};
+
+// ─── Debug snapshot for Tab 7 / ESP overlay ──────────────────────────────
+struct AMADebugEntry {
+    unsigned int playerID;
+    int          camp;
+    bool         isHost;
+    bool         targeted;
+};
+static AMADebugEntry g_amaDebugEntries[20];
+static int           g_amaDebugCount  = 0;
+static int           g_amaDebugDeg    = 0;
+static bool          g_amaDebugActive = false;
 
 // ─── Hooks ────────────────────────────────────────────────────────────────
 
@@ -121,6 +133,85 @@ static float LagSpam_Now() {
     return (float)(ts.tv_sec + ts.tv_nsec * 1e-9);
 }
 
+// ─── Private-method resolver ─────────────────────────────────────────────
+// Finds the PRIVATE overload of a method by matching name + parameterCount
+// + checking (flags & 0x07) == 0x01 (METHOD_ATTRIBUTE_MEMBER_ACCESS_MASK
+//   with value PRIVATE).  Returns the runtime address of the method or
+//   nullptr if not found.
+static void* LagSpam_FindPrivateMethod(const char* image, const char* ns,
+                                       const char* klass, const char* method,
+                                       int argsCount) {
+    Unity::unity_cache_t* cache = Unity::get_cached_unity();
+    if (!cache) return nullptr;
+
+    const Unity::file_buffer_t* meta = &cache->meta;
+    const uint32_t*             hdr  = cache->hdr;
+    if (!meta || !hdr) return nullptr;
+
+    uint32_t imagesOffset          = hdr[42];
+    uint32_t imagesSize            = hdr[43];
+    uint32_t typeDefinitionsOffset = hdr[40];
+    uint32_t typeDefinitionsSize   = hdr[41];
+    uint32_t methodsOffset         = hdr[12];
+    uint32_t methodsSize           = hdr[13];
+
+    const Unity::Il2CppImageDefinition*  images  =
+        (const Unity::Il2CppImageDefinition*)(meta->data + imagesOffset);
+    int image_count = (int)(imagesSize / sizeof(Unity::Il2CppImageDefinition));
+
+    const Unity::Il2CppTypeDefinition*   types   =
+        (const Unity::Il2CppTypeDefinition*)(meta->data + typeDefinitionsOffset);
+    int type_total  = (int)(typeDefinitionsSize / sizeof(Unity::Il2CppTypeDefinition));
+
+    const Unity::Il2CppMethodDefinition* methods =
+        (const Unity::Il2CppMethodDefinition*)(meta->data + methodsOffset);
+    int method_total = (int)(methodsSize / sizeof(Unity::Il2CppMethodDefinition));
+
+    for (int i = 0; i < image_count; i++) {
+        const char* img_name = Unity::metadata_string(meta, hdr, images[i].nameIndex);
+        if (!img_name || strcmp(img_name, image) != 0) continue;
+
+        int type_start = images[i].typeStart;
+        int type_end   = type_start + (int)images[i].typeCount;
+        if (type_start < 0 || type_start >= type_total) continue;
+        if (type_end > type_total) type_end = type_total;
+
+        for (int t = type_start; t < type_end; t++) {
+            const char* tns = Unity::metadata_string(meta, hdr, types[t].namespaceIndex);
+            const char* tn  = Unity::metadata_string(meta, hdr, types[t].nameIndex);
+            if (!tn) continue;
+            if (ns) {
+                if (!tns || strcmp(tns, ns) != 0) continue;
+            }
+            if (strcmp(tn, klass) != 0) continue;
+
+            int m_start = types[t].methodStart;
+            int m_end   = m_start + (int)types[t].method_count;
+            if (m_start < 0 || m_start >= method_total) continue;
+            if (m_end > method_total) m_end = method_total;
+
+            for (int m = m_start; m < m_end; m++) {
+                const char* mn = Unity::metadata_string(meta, hdr, methods[m].nameIndex);
+                if (!mn || strcmp(mn, method) != 0) continue;
+                if (argsCount >= 0 && methods[m].parameterCount != (uint16_t)argsCount) continue;
+                // Check private flag: METHOD_ATTRIBUTE_MEMBER_ACCESS_MASK = 0x0007
+                // Private = 0x0001
+                if ((methods[m].flags & 0x0007u) != 0x0001u) continue;
+
+                // Found the private overload – resolve its address
+                uint64_t method_va = 0;
+                if (!Unity::get_method_ptr(&cache->unity, &cache->data_secs, &cache->exec_secs,
+                                           cache->code_reg_va, image,
+                                           methods[m].token, &method_va)) {
+                    return nullptr;
+                }
+                return (void*)(g_il2cpp_base + (uintptr_t)(method_va - cache->image_base));
+            }
+        }
+    }
+    return nullptr;
+}
+
 // ─── Init – resolve tất cả method pointer ────────────────────────────────
 static void LagSpam_Init() {
     const char* pdll = "Project_d.dll";
@@ -143,11 +234,14 @@ static void LagSpam_Init() {
     move_SendDir   = (void(*)(void*,MoveVec2,MoveVec2)) GetMethodOffset(pdll, ns, "GameInput", "SendMoveDirection", 2);
     move_StopInput = (void(*)(void*))                    GetMethodOffset(pdll, ns, "GameInput", "StopInput", 0);
 
-    // AutoMoveAll – direct RVA (private SendMoveDirection overload)
-    if (g_il2cpp_base) {
-        move_SendDir_Priv = (void(*)(void*,int,unsigned int)) (g_il2cpp_base + 0x82D9B50);
-        ama_get_playerId  = (unsigned int(*)(void*))          (g_il2cpp_base + 0x8A496D0);
-    }
+    // AutoMoveAll – private SendMoveDirection(int degree, uint playerId) overload
+    // Resolved via metadata private-flag scan to avoid hardcoded RVA
+    move_SendDir_Priv = (void(*)(void*,int,unsigned int))
+        LagSpam_FindPrivateMethod(pdll, ns, "GameInput", "SendMoveDirection", 2);
+
+    // ActorLinker.get_playerId() – unique, no overload collision
+    ama_get_playerId = (unsigned int(*)(void*))
+        GetMethodOffset(pdll, "Kyrios.Actor", "ActorLinker", "get_playerId", 0);
 
     LOGI("[LagSpam] emoji=%p dance=%p combo=%p g2=%p g3=%p chat=%p",
          (void*)spam_SendEmojiByIdx, (void*)spam_SendDanceByIdx,
@@ -213,48 +307,122 @@ static void LagSpam_Update() {
     prevAutoMove = AutoMove.enable;
 
     // ── AutoMoveAll (tất cả người chơi) ──────────────────────────────────
-    if (AutoMoveAll.enable && g_gameInputInst && move_SendDir_Priv && ama_get_playerId) {
-        static float lastAll = 0.f;
-        if (now - lastAll >= AutoMoveAll.interval) {
-            lastAll = now;
-            int deg = 0;
-            bool doMove = false;
-            if (AutoMoveAll.useCustom) {
-                deg = AutoMoveAll.customDeg; doMove = true;
-            } else if (AutoMoveAll.dirN) { deg = 0;   doMove = true; }
-            else if (AutoMoveAll.dirS)   { deg = 180; doMove = true; }
-            else if (AutoMoveAll.dirE)   { deg = 90;  doMove = true; }
-            else if (AutoMoveAll.dirW)   { deg = 270; doMove = true; }
+    // Reset debug snapshot each update tick regardless of enable state
+    g_amaDebugActive = AutoMoveAll.enable;
+    if (!AutoMoveAll.enable) {
+        g_amaDebugCount = 0;
+    }
 
-            if (doMove) {
-                void* mgr = get_actorManager ? get_actorManager() : nullptr;
-                if (mgr && GetAllHeros_ActorManager) {
-                    void* heroListRaw = (void*)GetAllHeros_ActorManager(mgr);
-                    if (heroListRaw) {
-                        // Same raw layout as Hook.h: [+0x08]=items array ptr, [+0x10]=size
-                        void* arrPtr  = *(void**)((uintptr_t)heroListRaw + 0x08);
-                        int listSize  = *(int*)  ((uintptr_t)heroListRaw + 0x10);
-                        if (arrPtr && (uintptr_t)arrPtr >= 0x1000000 && listSize > 0) {
-                            // Skip managed-array header (0x18 bytes) to reach element 0
-                            void** items = (void**)((uintptr_t)arrPtr + 0x18);
-                            for (int i = 0; i < listSize; i++) {
-                                void* al = items[i * 2 + 1];
-                                if (!al || (uintptr_t)al < 0x1000000) continue;
-                                bool isHost  = IsHostPlayer ? IsHostPlayer(al) : false;
-                                int  camp    = get_objCamp  ? get_objCamp(al)  : 0;
-                                bool isAlly  = !isHost && campDetected && camp == myPlayerCamp;
-                                bool isEnemy = campDetected && camp != myPlayerCamp;
-                                if (isHost  && !AutoMoveAll.targetSelf)    continue;
-                                if (isAlly  && !AutoMoveAll.targetAllies)  continue;
-                                if (isEnemy && !AutoMoveAll.targetEnemies) continue;
-                                unsigned int pid = ama_get_playerId(al);
-                                if (pid == 0) continue;
-                                move_SendDir_Priv(g_gameInputInst, deg, pid);
+    if (AutoMoveAll.enable && g_gameInputInst && move_SendDir_Priv && ama_get_playerId) {
+        // Validate g_gameInputInst vtable before using it
+        uint64_t gi_vtable = *(uint64_t*)g_gameInputInst;
+        if ((gi_vtable & 0x0000FFFFFFFFFFFFull) < 0x1000000ull) goto ama_done;
+
+        {
+            static float lastAll = 0.f;
+            if (now - lastAll >= AutoMoveAll.interval) {
+                lastAll = now;
+                int deg    = 0;
+                bool doMove = false;
+                if (AutoMoveAll.useCustom) {
+                    deg = AutoMoveAll.customDeg; doMove = true;
+                } else if (AutoMoveAll.dirN) { deg = 0;   doMove = true; }
+                else if (AutoMoveAll.dirS)   { deg = 180; doMove = true; }
+                else if (AutoMoveAll.dirE)   { deg = 90;  doMove = true; }
+                else if (AutoMoveAll.dirW)   { deg = 270; doMove = true; }
+
+                if (doMove) {
+                    g_amaDebugDeg   = deg;
+                    g_amaDebugCount = 0;
+
+                    void* mgr = get_actorManager ? get_actorManager() : nullptr;
+                    if (mgr && GetAllHeros_ActorManager) {
+                        void* heroListRaw = (void*)GetAllHeros_ActorManager(mgr);
+                        if (heroListRaw) {
+                            // Same raw layout as Hook.h: [+0x08]=items array ptr, [+0x10]=size
+                            void* arrPtr = *(void**)((uintptr_t)heroListRaw + 0x08);
+                            int listSize = *(int*)  ((uintptr_t)heroListRaw + 0x10);
+
+                            // Clamp listSize to prevent runaway loops on garbage data
+                            if (listSize > 20) listSize = 20;
+
+                            if (arrPtr && (uintptr_t)arrPtr >= 0x1000000 && listSize > 0) {
+                                // Skip managed-array header (0x18 bytes) to reach element 0
+                                void** items = (void**)((uintptr_t)arrPtr + 0x18);
+                                for (int i = 0; i < listSize; i++) {
+                                    void* al = items[i * 2 + 1];
+                                    if (!al || (uintptr_t)al < 0x1000000) continue;
+
+                                    // Validate actor vtable (same pattern as Hook.h)
+                                    uint64_t vtable = *(uint64_t*)al;
+                                    if ((vtable & 0x0000FFFFFFFFFFFFull) < 0x1000000ull) continue;
+
+                                    bool isHost  = IsHostPlayer ? IsHostPlayer(al) : false;
+                                    int  camp    = get_objCamp  ? get_objCamp(al)  : 0;
+                                    bool isAlly  = !isHost && campDetected && camp == myPlayerCamp;
+                                    bool isEnemy = campDetected && camp != myPlayerCamp;
+
+                                    bool targeted = true;
+                                    if (isHost  && !AutoMoveAll.targetSelf)    targeted = false;
+                                    if (isAlly  && !AutoMoveAll.targetAllies)  targeted = false;
+                                    if (isEnemy && !AutoMoveAll.targetEnemies) targeted = false;
+
+                                    unsigned int pid = ama_get_playerId(al);
+
+                                    // Populate debug snapshot
+                                    if (g_amaDebugCount < 20) {
+                                        g_amaDebugEntries[g_amaDebugCount].playerID = pid;
+                                        g_amaDebugEntries[g_amaDebugCount].camp     = camp;
+                                        g_amaDebugEntries[g_amaDebugCount].isHost   = isHost;
+                                        g_amaDebugEntries[g_amaDebugCount].targeted = targeted;
+                                        g_amaDebugCount++;
+                                    }
+
+                                    if (!targeted) continue;
+                                    if (pid == 0) continue;
+                                    move_SendDir_Priv(g_gameInputInst, deg, pid);
+                                }
                             }
                         }
                     }
                 }
             }
         }
+    }
+    ama_done:;
+}
+
+// ─── ESP overlay: draw AutoMoveAll debug labels ───────────────────────────
+// Call from the ImGui render loop, passing the active ImDrawList and screen
+// dimensions (glWidth, glHeight from Main.cpp).
+static void DrawAutoMoveAllDebug(ImDrawList* draw, float screenWidth, float screenHeight) {
+    (void)screenWidth;
+    if (!draw) return;
+    if (!AutoMoveAll.enable || g_amaDebugCount <= 0) return;
+
+    ImFont* font     = ImGui::GetFont();
+    float   fontSize = ImGui::GetFontSize();
+
+    // Header line: degree + target count
+    char header[64];
+    int targeted_count = 0;
+    for (int i = 0; i < g_amaDebugCount; i++) {
+        if (g_amaDebugEntries[i].targeted) targeted_count++;
+    }
+    snprintf(header, sizeof(header), "[AMAAll] deg=%d targets=%d", g_amaDebugDeg, targeted_count);
+
+    float baseY = screenHeight - 20.f - (float)(g_amaDebugCount) * 18.f;
+    draw->AddText(font, fontSize, ImVec2(8.f, baseY - 18.f),
+                  IM_COL32(255, 220, 60, 230), header);
+
+    for (int i = 0; i < g_amaDebugCount; i++) {
+        const AMADebugEntry& e = g_amaDebugEntries[i];
+        char label[48];
+        snprintf(label, sizeof(label), "PID:%04u CAMP:%d", e.playerID, e.camp);
+        float y = screenHeight - 20.f - (float)(g_amaDebugCount - 1 - i) * 18.f;
+        ImU32 col = e.targeted
+            ? IM_COL32(80, 255, 80, 220)
+            : IM_COL32(160, 160, 160, 140);
+        draw->AddText(font, fontSize, ImVec2(8.f, y), col, label);
     }
 }
