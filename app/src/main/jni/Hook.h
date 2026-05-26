@@ -706,15 +706,37 @@ void MiniMapSys(void *instance) {
   _MiniMapSys(instance);
 }
 
-// ─── Minimap Teleport Button (always show in all modes) ──────────────────
-// Hooks SimpleLevelContext.IsTrainingMode() to always return true so the
-// minimap teleport button (normally practice-mode only) is shown everywhere.
+// ─── Teleport Button (always show in all modes) ──────────────────────────────
+// Hooks FightForm.UpdateTeleportBtnStatus() and forces m_TeleportButtonLeft /
+// m_TeleportButtonRight active after the original runs, bypassing all mode
+// checks (IsTrainingMode, isPVPLevel, etc.) so the button works in PvP too.
+// Field offsets and go_SetActive are resolved at runtime via GetFieldOffset /
+// GetMethodOffset (no hardcoded values).
 static bool g_forceTrainingTeleport = false;
-static bool (*orig_IsTrainingMode)(void* thiz) = nullptr;
-static bool hook_IsTrainingMode(void* thiz) {
-    if (g_forceTrainingTeleport) return true;
-    return orig_IsTrainingMode ? orig_IsTrainingMode(thiz) : false;
+static void (*go_SetActive)(void* go, bool active) = nullptr;
+static int  off_TeleportLeft  = 0;  // FightForm.m_TeleportButtonLeft offset
+static int  off_TeleportRight = 0;  // FightForm.m_TeleportButtonRight offset
+static void (*orig_UpdateTeleportBtnStatus)(void* thiz) = nullptr;
+static void hook_UpdateTeleportBtnStatus(void* thiz) {
+    if (orig_UpdateTeleportBtnStatus) orig_UpdateTeleportBtnStatus(thiz);
+    if (!g_forceTrainingTeleport || !thiz || !go_SetActive) return;
+    if (off_TeleportLeft > 0) {
+        void* btn = *(void**)((uintptr_t)thiz + (uintptr_t)off_TeleportLeft);
+        if (btn && (uintptr_t)btn > 0x1000000ull) go_SetActive(btn, true);
+    }
+    if (off_TeleportRight > 0) {
+        void* btn = *(void**)((uintptr_t)thiz + (uintptr_t)off_TeleportRight);
+        if (btn && (uintptr_t)btn > 0x1000000ull) go_SetActive(btn, true);
+    }
 }
+
+// ─── Coordinates / Position setter ──────────────────────────────────────────
+// set_location(VInt3): ActorLinker – sets actor's world position directly
+// (VInt3 uses milliunits: float ×1000 → VInt3 int, VInt3 int /1000 → float)
+static void (*set_location_linker)(void* thiz, VInt3 value) = nullptr;
+static float g_coordTargetX = 0.f;
+static float g_coordTargetY = 0.f;
+static float g_coordTargetZ = 0.f;
 
 void drawTextInt(ImVec2 position, int value, ImDrawList *draw) {
   char format_text[1024];

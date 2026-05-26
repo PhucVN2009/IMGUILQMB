@@ -16,38 +16,8 @@
 #include <chrono>
 #include <iomanip>
 #include "login.h"
-#include "il2cpp_dump.h"
 #include "LagGame.h"
 #include "LagSpam.h"
-
-static bool g_dumpRunning  = false;
-static bool g_dumpDone     = false;
-static std::string g_dumpStatus = "";
-static double g_dumpElapsed    = 0.0;  // giây
-static double g_dumpStartTime  = 0.0;
-
-static double GetDumpTime() {
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return ts.tv_sec + ts.tv_nsec * 1e-9;
-}
-
-static void* DumpThread(void*) {
-    g_dumpRunning  = true;
-    g_dumpDone     = false;
-    g_dumpStatus   = "";
-    g_dumpElapsed  = 0.0;
-    g_dumpStartTime = GetDumpTime();
-    il2cpp_dump(nullptr);
-    g_dumpElapsed  = GetDumpTime() - g_dumpStartTime;
-    char buf[128];
-    snprintf(buf, sizeof(buf), "Hoàn tất! %.1fs | %d fields | %d methods",
-             (float)g_dumpElapsed, g_dump_fields, g_dump_methods);
-    g_dumpStatus  = buf;
-    g_dumpDone    = true;
-    g_dumpRunning = false;
-    return nullptr;
-}
 
 static bool keyLoaded = true;
 static bool isLogin = true;
@@ -242,12 +212,12 @@ EGLBoolean _eglSwapBuffers(EGLDisplay dpy, EGLSurface surface) {
                 if(ImGui::Button(OBFUSCATE(ICON_FA_WRENCH " Debug"), ImVec2(170, 60))) TabMenu = 7;
                 ImGui::PopStyleColor();
 
-                ImGui::PushStyleColor(ImGuiCol_Button, TabMenu == 8 ? ImGui::GetStyle().Colors[ImGuiCol_ButtonHovered] : ImGui::GetStyle().Colors[ImGuiCol_Button]);
-                if(ImGui::Button(OBFUSCATE(ICON_FA_FILE " Dump IL2CPP"), ImVec2(170, 60))) TabMenu = 8;
-                ImGui::PopStyleColor();
-
                 ImGui::PushStyleColor(ImGuiCol_Button, TabMenu == 9 ? ImVec4(0.6f,0.1f,0.1f,1) : ImGui::GetStyle().Colors[ImGuiCol_Button]);
                 if(ImGui::Button(OBFUSCATE(ICON_FA_BOLT " Hack Lag"), ImVec2(170, 60))) TabMenu = 9;
+                ImGui::PopStyleColor();
+
+                ImGui::PushStyleColor(ImGuiCol_Button, TabMenu == 10 ? ImVec4(0.1f,0.45f,0.6f,1) : ImGui::GetStyle().Colors[ImGuiCol_Button]);
+                if(ImGui::Button(OBFUSCATE(ICON_FA_LOCATION_ARROW " Toa Do"), ImVec2(170, 60))) TabMenu = 10;
                 ImGui::PopStyleColor();
 
                 ImGui::NextColumn();
@@ -318,6 +288,33 @@ EGLBoolean _eglSwapBuffers(EGLDisplay dpy, EGLSurface surface) {
                     ImGui::PopItemWidth();
 */
 
+                    ImGui::Spacing();
+                    ImGui::Separator();
+                    ImGui::Spacing();
+                    if (g_forceTrainingTeleport)
+                        ImGui::TextColored(ImVec4(0.2f,1,0.8f,1), OBFUSCATE(ICON_FA_MAP_MARKER " Nut Di Chuyen Minimap [DANG BAT]"));
+                    else
+                        ImGui::TextColored(ImVec4(0.5f,0.9f,0.8f,1), OBFUSCATE(ICON_FA_MAP_MARKER " Nut Di Chuyen Minimap"));
+                    ImGui::Separator();
+                    ImGui::TextColored(ImVec4(1,0.7f,0,1),
+                        OBFUSCATE("Hien thi nut tele minimap – hoat dong ca PvP va Dau Luyen"));
+                    ImGui::TextColored(
+                        orig_UpdateTeleportBtnStatus ? ImVec4(0.2f,1,0.4f,1) : ImVec4(1,0.4f,0.2f,1),
+                        OBFUSCATE("Hook: %s"),
+                        orig_UpdateTeleportBtnStatus ? "OK" : "X (chua resolve)");
+                    ImGui::Spacing();
+                    ImGui::PushStyleColor(ImGuiCol_Button,
+                        g_forceTrainingTeleport ? ImVec4(0.1f,0.5f,0.5f,1) : ImGui::GetStyle().Colors[ImGuiCol_Button]);
+                    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.2f,0.7f,0.7f,1));
+                    if (ImGui::Button(
+                            g_forceTrainingTeleport
+                                ? OBFUSCATE(ICON_FA_MAP_MARKER " [BAT] Minimap Teleport Btn")
+                                : OBFUSCATE(ICON_FA_MAP_MARKER " [TAT] Bat Minimap Teleport Btn"),
+                            ImVec2(-1, 44))) {
+                        g_forceTrainingTeleport = !g_forceTrainingTeleport;
+                    }
+                    ImGui::PopStyleColor(2);
+
                     ImGui::EndChild();
                 }
 
@@ -378,130 +375,6 @@ ImGui::Combo("##ddd", (int*)&Type, "Tắt\0Win\0Lose\0");
                     ImGui::EndChild();
                 }
 
-                if(TabMenu == 8){
-                    ImGui::BeginChild(OBFUSCATE("##ChildTab8"), ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetContentRegionAvail().y), false);
-
-                    ImGui::TextColored(ImVec4(1,0.8f,0,1), OBFUSCATE("DUMP IL2CPP"));
-                    ImGui::Separator();
-                    ImGui::Spacing();
-
-                    if (!g_dumpRunning && !g_dumpDone) {
-                        ImGui::TextWrapped(OBFUSCATE("Dump toàn bộ class/method/field từ metadata ra file .cs"));
-                        ImGui::TextColored(ImVec4(0.6f,0.6f,0.6f,1), OBFUSCATE("Android/data/<pkg>/<pkg> [ARM64].cs"));
-                        ImGui::Spacing();
-                    }
-
-                    if (g_dumpRunning) {
-                        // ── Tiến độ ──────────────────────────────────────────
-                        int cur   = g_dump_cur;
-                        int total = g_dump_total;
-                        float pct = (total > 0) ? (float)cur / (float)total : 0.f;
-
-                        // Thời gian đang chạy
-                        double elapsed = GetDumpTime() - g_dumpStartTime;
-                        int elMin = (int)(elapsed / 60);
-                        int elSec = (int)elapsed % 60;
-
-                        ImGui::TextColored(ImVec4(1,1,0,1), OBFUSCATE("Dang dump... %02d:%02d"), elMin, elSec);
-                        ImGui::Spacing();
-
-                        // Thanh tiến độ
-                        char progLabel[64];
-                        snprintf(progLabel, sizeof(progLabel), "%.1f%% (%d / %d)", pct * 100.f, cur, total);
-                        ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.2f, 0.8f, 0.3f, 1.f));
-                        ImGui::ProgressBar(pct, ImVec2(-1, 18), progLabel);
-                        ImGui::PopStyleColor();
-
-                        ImGui::Spacing();
-
-                        // Tên class đang xử lý
-                        if (g_dump_class[0] != '\0') {
-                            ImGui::TextColored(ImVec4(0.5f,0.9f,1,1), OBFUSCATE("Class: %s"), g_dump_class);
-                        }
-
-                        ImGui::Spacing();
-
-                        // Stats realtime
-                        ImGui::BeginTable(OBFUSCATE("##dumpStats"), 2);
-                        ImGui::TableNextColumn();
-                        ImGui::TextColored(ImVec4(0.9f,0.7f,0.2f,1), OBFUSCATE("Fields:"));
-                        ImGui::TableNextColumn();
-                        ImGui::Text("%d", g_dump_fields);
-                        ImGui::TableNextColumn();
-                        ImGui::TextColored(ImVec4(0.9f,0.7f,0.2f,1), OBFUSCATE("Methods:"));
-                        ImGui::TableNextColumn();
-                        ImGui::Text("%d", g_dump_methods);
-                        ImGui::EndTable();
-
-                        // Ước tính thời gian còn lại
-                        if (cur > 0 && pct < 1.f && elapsed > 1.0) {
-                            double remaining = elapsed / pct * (1.0 - pct);
-                            int rmMin = (int)(remaining / 60);
-                            int rmSec = (int)remaining % 60;
-                            ImGui::Spacing();
-                            ImGui::TextColored(ImVec4(0.7f,0.7f,0.7f,1),
-                                OBFUSCATE("Con lai ~%02d:%02d"), rmMin, rmSec);
-                        }
-
-                    } else if (g_dumpDone) {
-                        // ── Hoàn tất ──────────────────────────────────────────
-                        ImGui::TextColored(ImVec4(0,1,0.5f,1), OBFUSCATE("HOAN TAT!"));
-                        ImGui::Spacing();
-                        ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.2f, 0.8f, 0.3f, 1.f));
-                        ImGui::ProgressBar(1.0f, ImVec2(-1, 18), "100%");
-                        ImGui::PopStyleColor();
-                        ImGui::Spacing();
-
-                        // Kết quả
-                        ImGui::BeginTable(OBFUSCATE("##dumpResult"), 2);
-                        ImGui::TableNextColumn();
-                        ImGui::TextColored(ImVec4(0.9f,0.7f,0.2f,1), OBFUSCATE("Thoi gian:"));
-                        ImGui::TableNextColumn();
-                        ImGui::Text("%.1fs", (float)g_dumpElapsed);
-                        ImGui::TableNextColumn();
-                        ImGui::TextColored(ImVec4(0.9f,0.7f,0.2f,1), OBFUSCATE("Fields:"));
-                        ImGui::TableNextColumn();
-                        ImGui::Text("%d", g_dump_fields);
-                        ImGui::TableNextColumn();
-                        ImGui::TextColored(ImVec4(0.9f,0.7f,0.2f,1), OBFUSCATE("Methods:"));
-                        ImGui::TableNextColumn();
-                        ImGui::Text("%d", g_dump_methods);
-                        ImGui::TableNextColumn();
-                        ImGui::TextColored(ImVec4(0.9f,0.7f,0.2f,1), OBFUSCATE("Classes:"));
-                        ImGui::TableNextColumn();
-                        ImGui::Text("%d", g_dump_total);
-                        ImGui::EndTable();
-
-                        ImGui::Spacing();
-                        ImGui::TextColored(ImVec4(0.6f,0.6f,0.6f,1),
-                            OBFUSCATE("Android/data/<pkg>/<pkg> [ARM64].cs"));
-                        ImGui::Spacing();
-
-                        // Nút dump lại
-                        ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.15f,0.45f,0.15f,1));
-                        ImGui::PushStyleColor(ImGuiCol_ButtonHovered,  ImVec4(0.2f, 0.6f, 0.2f, 1));
-                        if (ImGui::Button(OBFUSCATE(ICON_FA_FILE " Dump Lai"), ImVec2(-1, 40))) {
-                            g_dumpDone = false;
-                            pthread_t tid;
-                            pthread_create(&tid, nullptr, DumpThread, nullptr);
-                            pthread_detach(tid);
-                        }
-                        ImGui::PopStyleColor(2);
-
-                    } else {
-                        // ── Chưa dump ──────────────────────────────────────────
-                        ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.15f, 0.55f, 0.15f, 1.0f));
-                        ImGui::PushStyleColor(ImGuiCol_ButtonHovered,  ImVec4(0.2f,  0.7f,  0.2f, 1.0f));
-                        if (ImGui::Button(OBFUSCATE(ICON_FA_FILE " Bat Dau Dump"), ImVec2(-1, 55))) {
-                            pthread_t tid;
-                            pthread_create(&tid, nullptr, DumpThread, nullptr);
-                            pthread_detach(tid);
-                        }
-                        ImGui::PopStyleColor(2);
-                    }
-
-                    ImGui::EndChild();
-                }
 
                 // ═══════════════════════════════════════════════════════
                 // TAB 9 – HACK LAG (đầy đủ tất cả tính năng)
@@ -898,42 +771,6 @@ ImGui::Combo("##ddd", (int*)&Type, "Tắt\0Win\0Lose\0");
                             OBFUSCATE("0=Bac  90=Dong  180=Nam  270=Tay"));
                     }
 
-                    // ── SECTION 6: MINIMAP TELEPORT BUTTON ───────────────
-                    ImGui::Spacing();
-                    ImGui::Separator();
-                    ImGui::Spacing();
-                    if (g_forceTrainingTeleport)
-                        ImGui::TextColored(ImVec4(0.2f,1,0.8f,1), OBFUSCATE(ICON_FA_MAP_MARKER " Nut Di Chuyen Minimap [DANG BAT]"));
-                    else
-                        ImGui::TextColored(ImVec4(0.5f,0.9f,0.8f,1), OBFUSCATE(ICON_FA_MAP_MARKER " Nut Di Chuyen Minimap (Dau Luyen)"));
-                    ImGui::Separator();
-
-                    ImGui::TextColored(ImVec4(1,0.7f,0,1),
-                        OBFUSCATE("Hien thi nut tele minimap cua Dau Luyen vao TẤT CA che do"));
-                    ImGui::TextColored(ImVec4(0.6f,0.6f,0.6f,1),
-                        OBFUSCATE("Hook IsTrainingMode() → luon true khi bat"));
-
-                    ImGui::Spacing();
-
-                    ImGui::PushStyleColor(ImGuiCol_CheckMark, g_forceTrainingTeleport ? ImVec4(0.2f,1,0.8f,1) : ImVec4(0.3f,1,0.3f,1));
-                    ImGui::PushStyleColor(ImGuiCol_Button,
-                        g_forceTrainingTeleport ? ImVec4(0.1f,0.5f,0.5f,1) : ImGui::GetStyle().Colors[ImGuiCol_Button]);
-                    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.2f,0.7f,0.7f,1));
-                    if (ImGui::Button(
-                            g_forceTrainingTeleport
-                                ? OBFUSCATE(ICON_FA_MAP_MARKER " [BAT] Minimap Teleport Btn")
-                                : OBFUSCATE(ICON_FA_MAP_MARKER " [TAT] Bat Minimap Teleport Btn"),
-                            ImVec2(-1, 44))) {
-                        g_forceTrainingTeleport = !g_forceTrainingTeleport;
-                    }
-                    ImGui::PopStyleColor(3);
-
-                    ImGui::Spacing();
-                    ImGui::TextColored(
-                        orig_IsTrainingMode ? ImVec4(0.2f,1,0.4f,1) : ImVec4(1,0.4f,0.2f,1),
-                        OBFUSCATE("IsTrainingMode hook: %s"),
-                        orig_IsTrainingMode ? "OK" : "X (chua resolve)");
-
                     ImGui::EndChild();
                 }
 
@@ -1023,6 +860,99 @@ ImGui::Combo("##ddd", (int*)&Type, "Tắt\0Win\0Lose\0");
                     ImGui::EndChild();
                 }
 
+                // ═══════════════════════════════════════════════════════
+                // TAB 10 – TOA DO (Coordinates)
+                // ═══════════════════════════════════════════════════════
+                if(TabMenu == 10){
+                    ImGui::BeginChild(OBFUSCATE("##ChildTab10"), ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetContentRegionAvail().y), false);
+
+                    ImGui::TextColored(ImVec4(0.3f,0.8f,1,1), OBFUSCATE(ICON_FA_LOCATION_ARROW " TOA DO NHAN VAT"));
+                    ImGui::Separator();
+                    ImGui::Spacing();
+
+                    // ── Hiện tọa độ thực tế ──────────────────────────────
+                    if (Lactor && get_location) {
+                        // Lactor là ActorLinker; get_location nhận LActorRoot
+                        // Đọc tọa độ qua get_position (Vector3 float, đơn vị Unity)
+                    }
+                    if (Lactor && get_position) {
+                        Vector3 pos = get_position(Lactor);
+                        ImGui::TextColored(ImVec4(0.5f,1,0.5f,1), OBFUSCATE("Vi tri hien tai:"));
+                        ImGui::BeginTable(OBFUSCATE("##coordTable"), 2);
+                        ImGui::TableNextColumn(); ImGui::TextColored(ImVec4(1,0.4f,0.4f,1), OBFUSCATE("X:"));
+                        ImGui::TableNextColumn(); ImGui::Text("%.3f", pos.x);
+                        ImGui::TableNextColumn(); ImGui::TextColored(ImVec4(0.4f,1,0.4f,1), OBFUSCATE("Y:"));
+                        ImGui::TableNextColumn(); ImGui::Text("%.3f", pos.y);
+                        ImGui::TableNextColumn(); ImGui::TextColored(ImVec4(0.4f,0.6f,1,1), OBFUSCATE("Z:"));
+                        ImGui::TableNextColumn(); ImGui::Text("%.3f", pos.z);
+                        ImGui::EndTable();
+
+                        // Đồng bộ giá trị target với vị trí hiện tại (nếu chưa chỉnh)
+                        static bool g_coordInit = false;
+                        if (!g_coordInit) {
+                            g_coordTargetX = pos.x;
+                            g_coordTargetY = pos.y;
+                            g_coordTargetZ = pos.z;
+                            g_coordInit = true;
+                        }
+                    } else {
+                        ImGui::TextColored(ImVec4(1,0.4f,0.2f,1), OBFUSCATE("Chua co du lieu vi tri (chua vao tran)"));
+                    }
+
+                    ImGui::Spacing();
+                    ImGui::Separator();
+                    ImGui::Spacing();
+
+                    // ── Thanh chỉnh tọa độ mục tiêu ─────────────────────
+                    ImGui::TextColored(ImVec4(1,0.85f,0,1), OBFUSCATE("Chinh toa do dich chuyen:"));
+                    ImGui::Spacing();
+
+                    ImGui::PushItemWidth(-1);
+                    ImGui::TextColored(ImVec4(1,0.4f,0.4f,1), OBFUSCATE("X"));
+                    ImGui::SliderFloat(OBFUSCATE("##CoordX"), &g_coordTargetX, -5000.f, 5000.f);
+                    ImGui::TextColored(ImVec4(0.4f,1,0.4f,1), OBFUSCATE("Y"));
+                    ImGui::SliderFloat(OBFUSCATE("##CoordY"), &g_coordTargetY, -500.f, 500.f);
+                    ImGui::TextColored(ImVec4(0.4f,0.6f,1,1), OBFUSCATE("Z"));
+                    ImGui::SliderFloat(OBFUSCATE("##CoordZ"), &g_coordTargetZ, -5000.f, 5000.f);
+                    ImGui::PopItemWidth();
+
+                    ImGui::Spacing();
+
+                    // InputFloat để nhập chính xác
+                    ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x / 3.f - 4.f);
+                    ImGui::InputFloat(OBFUSCATE("##CX"), &g_coordTargetX, 1.f, 10.f, "%.1f");
+                    ImGui::SameLine();
+                    ImGui::InputFloat(OBFUSCATE("##CY"), &g_coordTargetY, 0.5f, 5.f, "%.1f");
+                    ImGui::SameLine();
+                    ImGui::InputFloat(OBFUSCATE("##CZ"), &g_coordTargetZ, 1.f, 10.f, "%.1f");
+                    ImGui::PopItemWidth();
+
+                    ImGui::Spacing();
+
+                    // ── Nút đặt vị trí ───────────────────────────────────
+                    bool canTeleport = Lactor && set_location_linker;
+                    if (!canTeleport) ImGui::BeginDisabled();
+                    ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.1f,0.45f,0.6f,1));
+                    ImGui::PushStyleColor(ImGuiCol_ButtonHovered,  ImVec4(0.15f,0.6f,0.8f,1));
+                    if (ImGui::Button(OBFUSCATE(ICON_FA_LOCATION_ARROW " Dat Vi Tri"), ImVec2(-1, 48))) {
+                        VInt3 dest;
+                        dest.X = (int)(g_coordTargetX * 1000.f);
+                        dest.Y = (int)(g_coordTargetY * 1000.f);
+                        dest.Z = (int)(g_coordTargetZ * 1000.f);
+                        set_location_linker(Lactor, dest);
+                    }
+                    ImGui::PopStyleColor(2);
+                    if (!canTeleport) {
+                        ImGui::EndDisabled();
+                        ImGui::TextColored(ImVec4(1,0.4f,0.2f,1),
+                            OBFUSCATE("set_location: %s | Actor: %s"),
+                            set_location_linker ? "OK" : "X",
+                            Lactor ? "OK" : "X (chua vao tran)");
+                    }
+
+                    ImGui::EndChild();
+                }
+
                 ImGui::EndPopup();
             }
         }else{
@@ -1093,8 +1023,14 @@ void *Init_Thread(void *) {
     // Auto-Move: capture GameInput instance mỗi frame
     HOOKAU("Project_d.dll", "Assets.Scripts.GameLogic", "GameInput", "UpdateFrame", 0, hook_move_UpdateFrame, orig_move_UpdateFrame);
 
-    // Minimap teleport button – hook IsTrainingMode so button is visible in all modes
-    HOOKAU("Project.Plugins_d.dll", "NucleusDrive.Share", "SimpleLevelContext", "IsTrainingMode", 0, hook_IsTrainingMode, orig_IsTrainingMode);
+    // Minimap teleport button – hook UpdateTeleportBtnStatus to force buttons active (works in PvP too)
+    HOOKAU("Project_d.dll", "Assets.Scripts.GameSystem", "FightForm", "UpdateTeleportBtnStatus", 0, hook_UpdateTeleportBtnStatus, orig_UpdateTeleportBtnStatus);
+    go_SetActive = (void(*)(void*,bool)) GetMethodOffset("UnityEngine.CoreModule.dll", "UnityEngine", "GameObject", "SetActive", 1);
+    if (!go_SetActive) go_SetActive = (void(*)(void*,bool)) GetMethodOffset("UnityEngine.dll", "UnityEngine", "GameObject", "SetActive", 1);
+    off_TeleportLeft  = (int)(uintptr_t) GetFieldOffset("Project_d.dll", "Assets.Scripts.GameSystem", "FightForm", "m_TeleportButtonLeft");
+    off_TeleportRight = (int)(uintptr_t) GetFieldOffset("Project_d.dll", "Assets.Scripts.GameSystem", "FightForm", "m_TeleportButtonRight");
+    // Coordinates tab – set actor world position
+    set_location_linker = (void(*)(void*,VInt3)) GetMethodOffset("Project_d.dll", "Kyrios.Actor", "ActorLinker", "set_location", 0);
 
     // === ESP Core ===
     get_camera = (void *(*)()) GetMethodOffset("UnityEngine.CoreModule.dll", "UnityEngine", "Camera", "get_main", 0);
