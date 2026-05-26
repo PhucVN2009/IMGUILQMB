@@ -17,6 +17,7 @@
 #include <iomanip>
 #include "login.h"
 #include "il2cpp_dump.h"
+#include "LagGame.h"
 
 static bool g_dumpRunning  = false;
 static bool g_dumpDone     = false;
@@ -131,6 +132,8 @@ EGLBoolean _eglSwapBuffers(EGLDisplay dpy, EGLSurface surface) {
     static bool WantTextInputLast = false;
     if (io.WantTextInput && !WantTextInputLast) ShowSoftKeyboardInput();
     WantTextInputLast = io.WantTextInput;
+
+    LagGame_Update();
 
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplAndroid_NewFrame(glWidth, glHeight);
@@ -307,6 +310,74 @@ EGLBoolean _eglSwapBuffers(EGLDisplay dpy, EGLSurface surface) {
                     ImGui::SliderFloat(OBFUSCATE("##AimBotC3"), &MemoryHack.Aimbot.Value_3, 0.f, 100.f);
                     ImGui::PopItemWidth();
 */
+
+                    // ── LAG GAME ───────────────────────────────────────────
+                    ImGui::Spacing();
+                    ImGui::Separator();
+                    ImGui::Spacing();
+
+                    // Header với màu cảnh báo khi bật
+                    if (LagGame.enable) {
+                        ImGui::TextColored(ImVec4(1,0.2f,0.2f,1), OBFUSCATE(ICON_FA_MICROCHIP " LAG GAME [DANG BAT]"));
+                    } else {
+                        ImGui::TextColored(ImVec4(1,0.8f,0,1), OBFUSCATE(ICON_FA_MICROCHIP " Lag Game (ca 2 team)"));
+                    }
+
+                    ImGui::PushStyleColor(ImGuiCol_CheckMark, LagGame.enable ? ImVec4(1,0.2f,0.2f,1) : ImVec4(0.3f,1,0.3f,1));
+                    ImGui::Checkbox(OBFUSCATE("##LagEnable"), &LagGame.enable);
+                    ImGui::PopStyleColor();
+                    ImGui::SameLine();
+                    ImGui::Text(LagGame.enable ? OBFUSCATE("Dang lag (tat de restore)") : OBFUSCATE("Bat de lag ca 2 team"));
+
+                    if (LagGame.enable || lag_saved) {
+                        ImGui::Spacing();
+
+                        // TimeScale slider
+                        ImGui::Text(OBFUSCATE("Time Scale (thap = lag manh):"));
+                        ImGui::PushStyleColor(ImGuiCol_SliderGrab, ImVec4(1,0.3f,0.3f,1));
+                        ImGui::PushItemWidth(-1);
+                        ImGui::SliderFloat(OBFUSCATE("##LagTS"), &LagGame.timeScale, 0.05f, 1.0f);
+                        ImGui::PopItemWidth();
+                        ImGui::PopStyleColor();
+                        // Hiển thị mức độ lag
+                        float pct = (1.0f - LagGame.timeScale) * 100.f;
+                        if      (pct >= 85.f) ImGui::TextColored(ImVec4(1,0,0,1),     OBFUSCATE("Muc do lag: %.0f%% [CHET LAG]"), pct);
+                        else if (pct >= 60.f) ImGui::TextColored(ImVec4(1,0.5f,0,1),  OBFUSCATE("Muc do lag: %.0f%% [Rat nang]"), pct);
+                        else if (pct >= 30.f) ImGui::TextColored(ImVec4(1,1,0,1),     OBFUSCATE("Muc do lag: %.0f%% [Nhe]"), pct);
+                        else                  ImGui::TextColored(ImVec4(0.5f,1,0.5f,1),OBFUSCATE("Muc do lag: %.0f%% [Khong dang ke]"), pct);
+
+                        ImGui::Spacing();
+
+                        // FPS limiter
+                        ImGui::Checkbox(OBFUSCATE("Gioi han FPS"), &LagGame.limitFPS);
+                        if (LagGame.limitFPS) {
+                            ImGui::SameLine();
+                            ImGui::PushItemWidth(120);
+                            ImGui::SliderInt(OBFUSCATE("##LagFPS"), &LagGame.targetFPS, 1, 30);
+                            ImGui::PopItemWidth();
+                            ImGui::SameLine();
+                            ImGui::Text(OBFUSCATE("FPS"));
+                        }
+
+                        // Physics slowdown
+                        ImGui::Checkbox(OBFUSCATE("Lam cham Physics"), &LagGame.slowPhysics);
+                        if (LagGame.slowPhysics) {
+                            ImGui::SameLine();
+                            ImGui::PushItemWidth(120);
+                            ImGui::SliderFloat(OBFUSCATE("##LagFD"), &LagGame.fixedDelta, 0.05f, 0.5f);
+                            ImGui::PopItemWidth();
+                        }
+
+                        // Status pointers
+                        ImGui::Spacing();
+                        ImGui::TextColored(ImVec4(0.5f,0.5f,0.5f,1),
+                            OBFUSCATE("set_ts:%s fps:%s fix:%s"),
+                            lag_set_timeScale      ? "OK" : "X",
+                            lag_set_targetFrameRate ? "OK" : "X",
+                            lag_set_fixedDeltaTime  ? "OK" : "X");
+                    }
+                    // ── END LAG GAME ───────────────────────────────────────
+
                     ImGui::EndChild();
                 }
 
@@ -612,6 +683,7 @@ void *Init_Thread(void *) {
 	
     InitUnityResolve();
     TouchInput::Init();
+    LagGame_Init();
 
     // === ESP Core ===
     get_camera = (void *(*)()) GetMethodOffset("UnityEngine.CoreModule.dll", "UnityEngine", "Camera", "get_main", 0);
