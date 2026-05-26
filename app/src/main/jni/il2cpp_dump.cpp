@@ -1,5 +1,6 @@
 #include "il2cpp_dump.h"
 #include "UnityInline.h"
+#include "Includes/Logger.h"
 
 #include <string>
 #include <fstream>
