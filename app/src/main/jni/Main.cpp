@@ -333,9 +333,9 @@ EGLBoolean _eglSwapBuffers(EGLDisplay dpy, EGLSurface surface) {
                         OBFUSCATE("Hook HandleSingleGameSettle: %s"),
                         orig_HandleSingleGameSettle ? "OK" : "X");
                     ImGui::TextColored(
-                        lfsbl_DoFightOver_fn ? ImVec4(0.2f,1,0.4f,1) : ImVec4(1,0.4f,0.2f,1),
-                        OBFUSCATE("DoFightOver fn: %s"),
-                        lfsbl_DoFightOver_fn ? "OK" : "X");
+                        CI18NCenter_UpdateArea_fn ? ImVec4(0.2f,1,0.4f,1) : ImVec4(1,0.4f,0.2f,1),
+                        OBFUSCATE("UpdateArea(China) fn: %s"),
+                        CI18NCenter_UpdateArea_fn ? "OK" : "X");
                     ImGui::Spacing();
                     ImGui::PushStyleColor(ImGuiCol_Button,
                         g_noSaveQuit ? ImVec4(0.5f,0.1f,0.1f,1)
@@ -343,16 +343,27 @@ EGLBoolean _eglSwapBuffers(EGLDisplay dpy, EGLSurface surface) {
                     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.85f,0.2f,0.2f,1));
                     if (ImGui::Button(
                             g_noSaveQuit
-                                ? OBFUSCATE(ICON_FA_TIMES_CIRCLE " [DANG XU LY] Cho ket thuc...")
+                                ? OBFUSCATE(ICON_FA_TIMES_CIRCLE " [DANG XU LY] Nhan lai de reset")
                                 : OBFUSCATE(ICON_FA_TIMES_CIRCLE " Thoat Tran Khong Luu"),
                             ImVec2(-1, 48))) {
-                        if (!g_noSaveQuit) {
+                        if (g_noSaveQuit) {
+                            // Manual reset nếu flag bị kẹt (China IP path không qua hooks)
+                            g_noSaveQuit = false;
+                            __android_log_print(ANDROID_LOG_INFO, "NoSaveQuit", "Flag reset manually");
+                        } else {
                             g_noSaveQuit = true;
-                            void* logic = get_ActiveBattleLogic_fn ? get_ActiveBattleLogic_fn() : nullptr;
                             __android_log_print(ANDROID_LOG_INFO, "NoSaveQuit",
-                                "Button pressed: logic=%p fn=%p", logic, lfsbl_DoFightOver_fn);
-                            if (lfsbl_DoFightOver_fn && logic)
-                                lfsbl_DoFightOver_fn(logic, false);
+                                "Button pressed: CI18NCenter_UpdateArea_fn=%p", CI18NCenter_UpdateArea_fn);
+                            // Ép IP Trung Quốc (countryCode=156) – static, thread-safe từ render thread
+                            // AOV VN/SEA block China region → game disconnect khỏi trận → về sảnh
+                            if (CI18NCenter_UpdateArea_fn) {
+                                CI18NCenter_UpdateArea_fn(156, true);
+                                __android_log_print(ANDROID_LOG_INFO, "NoSaveQuit",
+                                    "CI18NCenter_UpdateArea called countryCode=156 forceUpdate=true");
+                            } else {
+                                __android_log_print(ANDROID_LOG_WARN, "NoSaveQuit",
+                                    "CI18NCenter_UpdateArea_fn is NULL – thoat that bai");
+                            }
                         }
                     }
                     ImGui::PopStyleColor(2);
@@ -1093,10 +1104,14 @@ void *Init_Thread(void *) {
     PushFrameCommand_fn      = (void(*)(void*,void*)) GetMethodOffset("Project.Plugins_d.dll", "NucleusDrive.Logic", "LFrameSynchr", "PushFrameCommand", 1);
 
     // === No-Save Quit (thoát trận không lưu lịch sử) ===
-    lfsbl_DoFightOver_fn = (void(*)(void*,bool)) GetMethodOffset("Project.Plugins_d.dll", "NucleusDrive.Logic", "LFrameSyncBattleLogic", "DoFightOver", 1);
-    __android_log_print(ANDROID_LOG_INFO, "NoSaveQuit", "lfsbl_DoFightOver_fn=%p", lfsbl_DoFightOver_fn);
+    // CI18NCenter.UpdateArea(int,bool) – static, gọi được từ bất kỳ thread nào
+    CI18NCenter_UpdateArea_fn = (void(*)(int,bool)) GetMethodOffset("Project.Plugins_d.dll", "Assets.Plugins.I18N", "CI18NCenter", "UpdateArea", 2);
+    __android_log_print(ANDROID_LOG_INFO, "NoSaveQuit", "CI18NCenter_UpdateArea_fn=%p", CI18NCenter_UpdateArea_fn);
+    // Safety-net hooks: chặn server lưu kết quả nếu game vẫn cố gửi
     HOOKAU("Project_d.dll", "Assets.Scripts.GameLogic", "LobbyMsgHandler", "SendBattleResult", 1, hook_SendBattleResult, orig_SendBattleResult);
+    __android_log_print(ANDROID_LOG_INFO, "NoSaveQuit", "orig_SendBattleResult=%p", orig_SendBattleResult);
     HOOKAU("Project_d.dll", "Assets.Scripts.GameLogic", "LobbyMsgHandler", "HandleSingleGameSettle", 1, hook_HandleSingleGameSettle, orig_HandleSingleGameSettle);
+    __android_log_print(ANDROID_LOG_INFO, "NoSaveQuit", "orig_HandleSingleGameSettle=%p", orig_HandleSingleGameSettle);
 
     // === ESP Core ===
     get_camera = (void *(*)()) GetMethodOffset("UnityEngine.CoreModule.dll", "UnityEngine", "Camera", "get_main", 0);

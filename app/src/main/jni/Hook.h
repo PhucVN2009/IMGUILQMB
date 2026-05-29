@@ -778,19 +778,25 @@ static void hook_MtpCmd_Exec(void* thiz, void* battleLogic) {
 }
 
 // ─── Thoát trận không lưu lịch sử ────────────────────────────────────────────
-// Khi g_noSaveQuit=true: hook SendBattleResult và HandleSingleGameSettle để block
-// kết quả gửi server, đồng thời gọi LFrameSyncBattleLogic.DoFightOver(false)
-// để kết thúc trận và văng về sảnh không lưu lịch sử.
+// Cơ chế: gọi CI18NCenter.UpdateArea(156, true) – ép game nhận IP Trung Quốc
+// (countryCode=156, ISO 3166-1 numeric China). AOV/VN-SEA block China region
+// nên game tự disconnect khỏi trận và trả về sảnh. Không gọi DoFightOver trực
+// tiếp vì nó chạy trên logic-thread; gọi từ render-thread gây deadlock/freeze.
+// Hooks SendBattleResult + HandleSingleGameSettle giữ vai trò safety-net để
+// chặn server lưu kết quả nếu game vẫn cố gửi theo đường khác.
 static bool g_noSaveQuit = false;
-// LFrameSyncBattleLogic.DoFightOver(bool bNormalEnd) – kết thúc trận phía logic layer
-static void (*lfsbl_DoFightOver_fn)(void* thiz, bool bNormalEnd) = nullptr;
+
+// CI18NCenter.UpdateArea(int countryCode, bool forceUpdate) – static, thread-safe
+// Gọi với countryCode=156 (China) + forceUpdate=true → kích hoạt region-block path
+static void (*CI18NCenter_UpdateArea_fn)(int countryCode, bool forceUpdate) = nullptr;
 
 static void (*orig_SendBattleResult)(int iBattleResult) = nullptr;
 static void hook_SendBattleResult(int iBattleResult) {
     __android_log_print(ANDROID_LOG_INFO, "NoSaveQuit",
         "SendBattleResult called result=%d flag=%d", iBattleResult, (int)g_noSaveQuit);
     if (g_noSaveQuit) {
-        __android_log_print(ANDROID_LOG_INFO, "NoSaveQuit", "SendBattleResult BLOCKED");
+        g_noSaveQuit = false;
+        __android_log_print(ANDROID_LOG_INFO, "NoSaveQuit", "SendBattleResult BLOCKED – reset flag");
         return;
     }
     if (orig_SendBattleResult) orig_SendBattleResult(iBattleResult);
