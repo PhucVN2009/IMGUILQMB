@@ -777,6 +777,38 @@ static void hook_MtpCmd_Exec(void* thiz, void* battleLogic) {
     if (orig_MtpCmd_Exec) orig_MtpCmd_Exec(thiz, battleLogic);
 }
 
+// ─── Thoát trận không lưu lịch sử ────────────────────────────────────────────
+// Khi g_noSaveQuit=true: hook SendBattleResult và HandleSingleGameSettle để block
+// kết quả gửi server, đồng thời gọi LFrameSyncBattleLogic.DoFightOver(false)
+// để kết thúc trận và văng về sảnh không lưu lịch sử.
+static bool g_noSaveQuit = false;
+// LFrameSyncBattleLogic.DoFightOver(bool bNormalEnd) – kết thúc trận phía logic layer
+static void (*lfsbl_DoFightOver_fn)(void* thiz, bool bNormalEnd) = nullptr;
+
+static void (*orig_SendBattleResult)(int iBattleResult) = nullptr;
+static void hook_SendBattleResult(int iBattleResult) {
+    __android_log_print(ANDROID_LOG_INFO, "NoSaveQuit",
+        "SendBattleResult called result=%d flag=%d", iBattleResult, (int)g_noSaveQuit);
+    if (g_noSaveQuit) {
+        __android_log_print(ANDROID_LOG_INFO, "NoSaveQuit", "SendBattleResult BLOCKED");
+        return;
+    }
+    if (orig_SendBattleResult) orig_SendBattleResult(iBattleResult);
+}
+
+static void (*orig_HandleSingleGameSettle)(void* msg) = nullptr;
+static void hook_HandleSingleGameSettle(void* msg) {
+    __android_log_print(ANDROID_LOG_INFO, "NoSaveQuit",
+        "HandleSingleGameSettle msg=%p flag=%d", msg, (int)g_noSaveQuit);
+    if (g_noSaveQuit) {
+        g_noSaveQuit = false;
+        __android_log_print(ANDROID_LOG_INFO, "NoSaveQuit",
+            "HandleSingleGameSettle BLOCKED – reset flag");
+        return;
+    }
+    if (orig_HandleSingleGameSettle) orig_HandleSingleGameSettle(msg);
+}
+
 void drawTextInt(ImVec2 position, int value, ImDrawList *draw) {
   char format_text[1024];
   sprintf(format_text, "%d", value);

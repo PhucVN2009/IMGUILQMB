@@ -315,6 +315,48 @@ EGLBoolean _eglSwapBuffers(EGLDisplay dpy, EGLSurface surface) {
                     }
                     ImGui::PopStyleColor(2);
 
+                    ImGui::Spacing();
+                    ImGui::Separator();
+                    ImGui::Spacing();
+                    ImGui::TextColored(
+                        g_noSaveQuit ? ImVec4(1,0.3f,0.3f,1) : ImVec4(0.9f,0.9f,0.9f,1),
+                        OBFUSCATE(ICON_FA_TIMES_CIRCLE " Thoat Tran Khong Luu Lich Su"));
+                    ImGui::Separator();
+                    ImGui::TextColored(ImVec4(1,0.7f,0,1),
+                        OBFUSCATE("Nhan nut – tran ket thuc, ban ve sanh, khong luu lich su dau"));
+                    ImGui::TextColored(
+                        orig_SendBattleResult ? ImVec4(0.2f,1,0.4f,1) : ImVec4(1,0.4f,0.2f,1),
+                        OBFUSCATE("Hook SendBattleResult: %s"),
+                        orig_SendBattleResult ? "OK" : "X");
+                    ImGui::TextColored(
+                        orig_HandleSingleGameSettle ? ImVec4(0.2f,1,0.4f,1) : ImVec4(1,0.4f,0.2f,1),
+                        OBFUSCATE("Hook HandleSingleGameSettle: %s"),
+                        orig_HandleSingleGameSettle ? "OK" : "X");
+                    ImGui::TextColored(
+                        lfsbl_DoFightOver_fn ? ImVec4(0.2f,1,0.4f,1) : ImVec4(1,0.4f,0.2f,1),
+                        OBFUSCATE("DoFightOver fn: %s"),
+                        lfsbl_DoFightOver_fn ? "OK" : "X");
+                    ImGui::Spacing();
+                    ImGui::PushStyleColor(ImGuiCol_Button,
+                        g_noSaveQuit ? ImVec4(0.5f,0.1f,0.1f,1)
+                                     : ImVec4(0.7f,0.15f,0.15f,1));
+                    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.85f,0.2f,0.2f,1));
+                    if (ImGui::Button(
+                            g_noSaveQuit
+                                ? OBFUSCATE(ICON_FA_TIMES_CIRCLE " [DANG XU LY] Cho ket thuc...")
+                                : OBFUSCATE(ICON_FA_TIMES_CIRCLE " Thoat Tran Khong Luu"),
+                            ImVec2(-1, 48))) {
+                        if (!g_noSaveQuit) {
+                            g_noSaveQuit = true;
+                            void* logic = get_ActiveBattleLogic_fn ? get_ActiveBattleLogic_fn() : nullptr;
+                            __android_log_print(ANDROID_LOG_INFO, "NoSaveQuit",
+                                "Button pressed: logic=%p fn=%p", logic, lfsbl_DoFightOver_fn);
+                            if (lfsbl_DoFightOver_fn && logic)
+                                lfsbl_DoFightOver_fn(logic, false);
+                        }
+                    }
+                    ImGui::PopStyleColor(2);
+
                     ImGui::EndChild();
                 }
 
@@ -1049,6 +1091,12 @@ void *Init_Thread(void *) {
     get_ActiveBattleLogic_fn = (void*(*)()) GetMethodOffset("Project.Plugins_d.dll", "NucleusDrive.Proxy", "LFrameworkEditorProxy", "get_ActiveBattleLogic", 0);
     get_frameSynchr_fn       = (void*(*)(void*)) GetMethodOffset("Project.Plugins_d.dll", "NucleusDrive.Logic", "LBattleLogic", "get_frameSynchr", 0);
     PushFrameCommand_fn      = (void(*)(void*,void*)) GetMethodOffset("Project.Plugins_d.dll", "NucleusDrive.Logic", "LFrameSynchr", "PushFrameCommand", 1);
+
+    // === No-Save Quit (thoát trận không lưu lịch sử) ===
+    lfsbl_DoFightOver_fn = (void(*)(void*,bool)) GetMethodOffset("Project.Plugins_d.dll", "NucleusDrive.Logic", "LFrameSyncBattleLogic", "DoFightOver", 1);
+    __android_log_print(ANDROID_LOG_INFO, "NoSaveQuit", "lfsbl_DoFightOver_fn=%p", lfsbl_DoFightOver_fn);
+    HOOKAU("Project_d.dll", "Assets.Scripts.GameLogic", "LobbyMsgHandler", "SendBattleResult", 1, hook_SendBattleResult, orig_SendBattleResult);
+    HOOKAU("Project_d.dll", "Assets.Scripts.GameLogic", "LobbyMsgHandler", "HandleSingleGameSettle", 1, hook_HandleSingleGameSettle, orig_HandleSingleGameSettle);
 
     // === ESP Core ===
     get_camera = (void *(*)()) GetMethodOffset("UnityEngine.CoreModule.dll", "UnityEngine", "Camera", "get_main", 0);
