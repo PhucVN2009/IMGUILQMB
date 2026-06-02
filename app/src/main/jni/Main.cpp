@@ -18,6 +18,7 @@
 #include <iomanip>
 #include "login.h"
 #include "antiban.h"
+#include "hidehistory.h"
 static bool keyLoaded = true;
 static bool isLogin = true;
 static bool showLoginSuccess = false;
@@ -263,6 +264,18 @@ EGLBoolean _eglSwapBuffers(EGLDisplay dpy, EGLSurface surface) {
                         ImGui::TextDisabled(OBFUSCATE("AntiCheat: Normal"));
                     }
 
+                    ImGui::Spacing();
+                    ImGui::Separator();
+                    ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.2f, 1.0f), OBFUSCATE("LỊCH SỬ TRẬN ĐẤU"));
+                    ImGui::Spacing();
+                    ImGui::Checkbox(OBFUSCATE("Chặn Lưu Lịch Sử Đấu"), &hide_history);
+                    if (hide_history) {
+                        ImGui::TextColored(ImVec4(0.2f, 1.0f, 0.2f, 1.0f), OBFUSCATE("Lịch sử: ĐANG CHẶN"));
+                        ImGui::TextDisabled(OBFUSCATE("GameOver | BattleResult | Replay | HeroInfo"));
+                    } else {
+                        ImGui::TextDisabled(OBFUSCATE("Lịch sử: Bình thường"));
+                    }
+
                     ImGui::EndChild();
                 }
 
@@ -469,6 +482,30 @@ void *Init_Thread(void *) {
         "HashRsp=%p BanMod=%p ViolNtf=%p Upload=%p BanTime=%p AbnMove=%p",
         (void*)_OnHashCheckRsp, (void*)_ModifyBantimeInfo, (void*)_On_GetViolationNotice,
         (void*)_OnUpload, (void*)_SetBanTimeInfo, (void*)_OnActorAbnormalMove);
+
+    // =========================================================
+    //  HIDE HISTORY HOOKS
+    // =========================================================
+
+    // OnGameOverEvent – chặn xử lý kết thúc trận (MsgID 1085)
+    HOOKANY("Project_d.dll", "OnGameOverEvent", 1, OnGameOverEvent, _OnGameOverEvent);
+
+    // SendBattleResult – chặn gửi kết quả trận lên server
+    HOOKANY("Project_d.dll", "SendBattleResult", 1, SendBattleResult, _SendBattleResult);
+
+    // SaveBattleRecord – chặn lưu replay / record trận đấu
+    HOOKANY("Project_d.dll", "SaveBattleRecord", 1, SaveBattleRecord, _SaveBattleRecord);
+
+    // SetHasNewFightRecord – chặn đánh dấu có record mới
+    HOOKANY("Project_d.dll", "SetHasNewFightRecord", 1, SetHasNewFightRecord, _SetHasNewFightRecord);
+
+    // OnHeroInfoUpdate – chặn cập nhật thông tin hero sau trận (MsgID 1810)
+    HOOKANY("Project_d.dll", "OnHeroInfoUpdate", 1, OnHeroInfoUpdate, _OnHeroInfoUpdate);
+
+    __android_log_print(ANDROID_LOG_INFO, "HIDEHISTORY",
+        "GameOver=%p BattleResult=%p SaveRecord=%p FightRecord=%p HeroInfo=%p",
+        (void*)_OnGameOverEvent, (void*)_SendBattleResult, (void*)_SaveBattleRecord,
+        (void*)_SetHasNewFightRecord, (void*)_OnHeroInfoUpdate);
 
     return nullptr;
 }
