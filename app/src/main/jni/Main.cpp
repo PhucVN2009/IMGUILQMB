@@ -19,6 +19,7 @@
 #include "login.h"
 #include "antiban.h"
 #include "hidehistory.h"
+#include "memspy.h"
 static bool keyLoaded = true;
 static bool isLogin = true;
 static bool showLoginSuccess = false;
@@ -196,6 +197,10 @@ EGLBoolean _eglSwapBuffers(EGLDisplay dpy, EGLSurface surface) {
                     if(ImGui::Button(OBFUSCATE(ICON_FA_WRENCH " Setting"), ImVec2(170, 60))) TabMenu = 3;
                     ImGui::PopStyleColor();
 
+                    ImGui::PushStyleColor(ImGuiCol_Button, TabMenu == 4 ? ImGui::GetStyle().Colors[ImGuiCol_ButtonHovered] : ImGui::GetStyle().Colors[ImGuiCol_Button]);
+                    if(ImGui::Button(OBFUSCATE(ICON_FA_SEARCH " Spy"), ImVec2(170, 60))) TabMenu = 4;
+                    ImGui::PopStyleColor();
+
                 ImGui::NextColumn();
 
                 if(TabMenu == 1){
@@ -274,6 +279,70 @@ EGLBoolean _eglSwapBuffers(EGLDisplay dpy, EGLSurface surface) {
                         ImGui::TextDisabled(OBFUSCATE("GameOver | BattleResult | Replay | HeroInfo"));
                     } else {
                         ImGui::TextDisabled(OBFUSCATE("Lịch sử: Bình thường"));
+                    }
+
+                    ImGui::EndChild();
+                }
+
+                if(TabMenu == 4){
+                    ImGui::BeginChild(OBFUSCATE("##ChildTabSpy"), ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetContentRegionAvail().y), false);
+
+                    // ---- Header + scan controls ----
+                    ImGui::TextColored(ImVec4(1.0f, 0.6f, 0.0f, 1.0f), OBFUSCATE("HOOK SCANNER"));
+                    ImGui::TextDisabled(OBFUSCATE("Scan Dobby trampolines trong libil2cpp.so"));
+                    ImGui::Spacing();
+
+                    if (g_spyScanBusy) {
+                        ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), OBFUSCATE("Dang quet..."));
+                    } else {
+                        if (ImGui::Button(OBFUSCATE("Quet Hook"), ImVec2(-1, 50)))
+                            StartHookScan();
+                    }
+
+                    if (g_spyScanReady) {
+                        ImGui::Text(OBFUSCATE("Tim thay: %d hooks"), g_spyScanCount);
+
+                        // Filter options
+                        static bool showOwn    = true;
+                        static bool showOthers = true;
+                        ImGui::Checkbox(OBFUSCATE("Hien mod nay"), &showOwn);
+                        ImGui::SameLine();
+                        ImGui::Checkbox(OBFUSCATE("Hien mod khac"), &showOthers);
+
+                        if (ImGui::Button(OBFUSCATE("Dump ra logcat"), ImVec2(-1, 40)))
+                            DumpHooksToLog();
+
+                        ImGui::Separator();
+                        ImGui::Spacing();
+
+                        // Scrollable hook list
+                        ImGui::BeginChild(OBFUSCATE("##HookList"),
+                            ImVec2(ImGui::GetContentRegionAvail().x, 0), false,
+                            ImGuiWindowFlags_HorizontalScrollbar);
+
+                        for (const auto &e : g_hookEntries) {
+                            if (e.is_own  && !showOwn)    continue;
+                            if (!e.is_own && !showOthers) continue;
+
+                            // Color: green = mod này, yellow = mod khác, grey = game
+                            ImVec4 col;
+                            if (e.is_own)
+                                col = ImVec4(0.4f, 1.0f, 0.4f, 1.0f);   // green = our hook
+                            else if (strstr(e.target_lib, "libil2cpp") == nullptr)
+                                col = ImVec4(1.0f, 0.5f, 0.2f, 1.0f);   // orange = external mod
+                            else
+                                col = ImVec4(0.7f, 0.7f, 0.7f, 1.0f);   // grey = intra-il2cpp
+
+                            char buf[256];
+                            snprintf(buf, sizeof(buf),
+                                "+0x%08lX -> %s+0x%08lX",
+                                (unsigned long)e.rva,
+                                e.target_lib,
+                                (unsigned long)e.target_rva);
+                            ImGui::TextColored(col, "%s", buf);
+                        }
+
+                        ImGui::EndChild();
                     }
 
                     ImGui::EndChild();
