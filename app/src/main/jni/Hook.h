@@ -45,6 +45,7 @@ auto hex_botro =
     "00 0B 00 36 E0 03 14 AA E1 03 1F AA 5E 7E 28 94 1F 04 00 71 6B 0A 00 54";
 auto mask_botro = "xxxxxxxxxxxx???xxxxxxxxx";
 bool win, lose, offwinlose;
+bool forceWinResult = false, forceLoseResult = false;
 
 int (*ActorLinker_COM_PLAYERCAMP)(void *instance);
 int (*LActorRoot_COM_PLAYERCAMP)(void *instance);
@@ -609,6 +610,60 @@ void FightOver_LGameActorMgr(void *instance) {
   __android_log_print(ANDROID_LOG_INFO, "CRASH_DBG",
                       "FightOver: calling original");
   _FightOver_LGameActorMgr(instance);
+}
+
+// === Force Win/Lose Result Hooks ===
+// Hook OnGameOverEventMainThread to swap bWinCamp before client processes result
+void (*_OnGameOverEventMainThread)(uint8_t bWinCamp, uint8_t bBeSurrender);
+void OnGameOverEventMainThread_Hook(uint8_t bWinCamp, uint8_t bBeSurrender) {
+  uint8_t originalWinCamp = bWinCamp;
+  if (campDetected && myPlayerCamp > 0) {
+    if (forceWinResult) {
+      bWinCamp = (uint8_t)myPlayerCamp;
+      __android_log_print(ANDROID_LOG_INFO, "FORCE_RESULT",
+          "GameOver: FORCE WIN camp %d -> %d", originalWinCamp, bWinCamp);
+    } else if (forceLoseResult) {
+      // Set bWinCamp to enemy camp
+      uint8_t enemyCamp = (myPlayerCamp == 1) ? 2 : 1;
+      bWinCamp = enemyCamp;
+      __android_log_print(ANDROID_LOG_INFO, "FORCE_RESULT",
+          "GameOver: FORCE LOSE camp %d -> %d", originalWinCamp, bWinCamp);
+    }
+  }
+  _OnGameOverEventMainThread(bWinCamp, bBeSurrender);
+}
+
+// Hook SendBattleResult to change iBattleResult sent to server
+// bGameResult: 1 = win, 2 = lose, 0 = neutral/draw
+void (*_SendBattleResult)(int iBattleResult);
+void SendBattleResult_Hook(int iBattleResult) {
+  int originalResult = iBattleResult;
+  if (forceWinResult) {
+    iBattleResult = 1;
+    __android_log_print(ANDROID_LOG_INFO, "FORCE_RESULT",
+        "SendBattleResult: FORCE WIN %d -> 1", originalResult);
+  } else if (forceLoseResult) {
+    iBattleResult = 2;
+    __android_log_print(ANDROID_LOG_INFO, "FORCE_RESULT",
+        "SendBattleResult: FORCE LOSE %d -> 2", originalResult);
+  }
+  _SendBattleResult(iBattleResult);
+}
+
+// Hook HandleGameSettle to change GameResult in settlement response
+void (*_HandleGameSettle)(bool bSuccess, bool bShouldDisplayWinLose, uint8_t GameResult, void *svrData);
+void HandleGameSettle_Hook(bool bSuccess, bool bShouldDisplayWinLose, uint8_t GameResult, void *svrData) {
+  uint8_t originalResult = GameResult;
+  if (forceWinResult) {
+    GameResult = 1;
+    __android_log_print(ANDROID_LOG_INFO, "FORCE_RESULT",
+        "HandleGameSettle: FORCE WIN result %d -> 1", originalResult);
+  } else if (forceLoseResult) {
+    GameResult = 2;
+    __android_log_print(ANDROID_LOG_INFO, "FORCE_RESULT",
+        "HandleGameSettle: FORCE LOSE result %d -> 2", originalResult);
+  }
+  _HandleGameSettle(bSuccess, bShouldDisplayWinLose, GameResult, svrData);
 }
 
 // Hook on ActorLinker layer to detect host player camp + cache visibility

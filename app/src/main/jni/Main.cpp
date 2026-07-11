@@ -201,6 +201,10 @@ EGLBoolean _eglSwapBuffers(EGLDisplay dpy, EGLSurface surface) {
                 if(ImGui::Button(OBFUSCATE(ICON_FA_USERS " About"), ImVec2(170, 60))) TabMenu = 5;
                 ImGui::PopStyleColor();
 
+                ImGui::PushStyleColor(ImGuiCol_Button, TabMenu == 6 ? ImGui::GetStyle().Colors[ImGuiCol_ButtonHovered] : ImGui::GetStyle().Colors[ImGuiCol_Button]);
+                if(ImGui::Button(OBFUSCATE(ICON_FA_TROPHY " Result"), ImVec2(170, 60))) TabMenu = 6;
+                ImGui::PopStyleColor();
+
                 ImGui::PushStyleColor(ImGuiCol_Button, TabMenu == 7 ? ImGui::GetStyle().Colors[ImGuiCol_ButtonHovered] : ImGui::GetStyle().Colors[ImGuiCol_Button]);
                 if(ImGui::Button(OBFUSCATE(ICON_FA_WRENCH " Debug"), ImVec2(170, 60))) TabMenu = 7;
                 ImGui::PopStyleColor();
@@ -279,8 +283,12 @@ EGLBoolean _eglSwapBuffers(EGLDisplay dpy, EGLSurface surface) {
                   if(TabMenu == 6){
                     ImGui::BeginChild(OBFUSCATE("##ChildTab6"), ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetContentRegionAvail().y), false);
 
+     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.8f, 0.0f, 1.0f));
+     ImGui::Text(OBFUSCATE("--- Crystal HP ---"));
+     ImGui::PopStyleColor();
+
 ImGui::Combo("##ddd", (int*)&Type, "Tắt\0Win\0Lose\0");
-    
+
      ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1, 1, 1, 1));
      ImGui::TextWrapped("Chọn Win xong rồi tắt để không văng");
      ImGui::PopStyleColor();
@@ -290,6 +298,27 @@ ImGui::Combo("##ddd", (int*)&Type, "Tắt\0Win\0Lose\0");
         case 1: win = true; lose = false; break;
         case 2: win = false; lose = true; break;
         }
+
+     ImGui::Spacing();
+     ImGui::Separator();
+     ImGui::Spacing();
+
+     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.2f, 0.2f, 1.0f));
+     ImGui::Text(OBFUSCATE("--- Ép Kết Quả Server ---"));
+     ImGui::PopStyleColor();
+
+     static int forceResultType = 0;
+     ImGui::Combo("##forceResult", &forceResultType, "Tắt\0Ép Win\0Ép Lose\0");
+     switch (forceResultType)
+        {
+        case 0: forceWinResult = false; forceLoseResult = false; break;
+        case 1: forceWinResult = true; forceLoseResult = false; break;
+        case 2: forceWinResult = false; forceLoseResult = true; break;
+        }
+
+     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1, 1, 1, 1));
+     ImGui::TextWrapped("Ép server ghi nhận kết quả Win/Lose cho tất cả chế độ PvP");
+     ImGui::PopStyleColor();
 
                     ImGui::EndChild();
                 }
@@ -563,6 +592,13 @@ void *Init_Thread(void *) {
             }
         }
     }
+
+    // === Force Win/Lose Result Hooks ===
+    HOOKAU("Project_d.dll", "Assets.Scripts.GameLogic", "LobbyMsgHandler", "OnGameOverEventMainThread", 2, OnGameOverEventMainThread_Hook, _OnGameOverEventMainThread);
+    HOOKAU("Project_d.dll", "Assets.Scripts.GameLogic", "LobbyMsgHandler", "SendBattleResult", 1, SendBattleResult_Hook, _SendBattleResult);
+    HOOKAU("Project_d.dll", "Assets.Scripts.GameLogic", "LobbyMsgHandler", "HandleGameSettle", 4, HandleGameSettle_Hook, _HandleGameSettle);
+    __android_log_print(ANDROID_LOG_INFO, "FORCE_RESULT", "Hooks: GameOver=%p SendResult=%p Settle=%p",
+        (void*)_OnGameOverEventMainThread, (void*)_SendBattleResult, (void*)_HandleGameSettle);
 
     __android_log_print(ANDROID_LOG_INFO, "ESP_INIT", "All hooks installed");
     
