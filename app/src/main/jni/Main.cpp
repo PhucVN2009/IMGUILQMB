@@ -594,10 +594,17 @@ void *Init_Thread(void *) {
     }
 
     // === Force Win/Lose Result Hooks ===
+    // Hook packet serialization: COMDT_MULTI_GAME_PARAM.pack() in AovTdr.dll
+    HOOKAU("AovTdr.dll", "CSProtocol", "COMDT_MULTI_GAME_PARAM", "pack", 2, COMDT_MULTI_GAME_PARAM_pack_Hook, _COMDT_MULTI_GAME_PARAM_pack);
+    // Hook stored battle result setter
+    HOOKAU("Project_d.dll", "Kyrios.Statistic", "VBattleStatistic", "set_iBattleResult", 1, set_iBattleResult_Hook, _set_iBattleResult);
+    // Hook game over event processing
     HOOKAU("Project_d.dll", "Assets.Scripts.GameLogic", "LobbyMsgHandler", "OnGameOverEventMainThread", 2, OnGameOverEventMainThread_Hook, _OnGameOverEventMainThread);
     HOOKAU("Project_d.dll", "Assets.Scripts.GameLogic", "LobbyMsgHandler", "SendBattleResult", 1, SendBattleResult_Hook, _SendBattleResult);
     HOOKAU("Project_d.dll", "Assets.Scripts.GameLogic", "LobbyMsgHandler", "HandleGameSettle", 4, HandleGameSettle_Hook, _HandleGameSettle);
-    __android_log_print(ANDROID_LOG_INFO, "FORCE_RESULT", "Hooks: GameOver=%p SendResult=%p Settle=%p",
+    __android_log_print(ANDROID_LOG_INFO, "FORCE_RESULT",
+        "Hooks: Pack=%p SetResult=%p GameOver=%p SendResult=%p Settle=%p",
+        (void*)_COMDT_MULTI_GAME_PARAM_pack, (void*)_set_iBattleResult,
         (void*)_OnGameOverEventMainThread, (void*)_SendBattleResult, (void*)_HandleGameSettle);
 
     __android_log_print(ANDROID_LOG_INFO, "ESP_INIT", "All hooks installed");
