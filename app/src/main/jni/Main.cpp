@@ -420,6 +420,19 @@ ImGui::Combo("##ddd", (int*)&Type, "Tắt\0Win\0Lose\0");
                     ImGui::Separator();
 
                     ImGui::Checkbox(OBFUSCATE("Show All IDs on Screen"), &dbg_showAllIDs);
+                    ImGui::Separator();
+
+                    ImGui::TextColored(ImVec4(1,0.2f,0.2f,1), "FORCE RESULT DEBUG");
+                    ImGui::Text("forceWin: %s", forceWinResult ? "ON" : "OFF");
+                    ImGui::Text("forceLose: %s", forceLoseResult ? "ON" : "OFF");
+                    ImGui::Text("MyCamp: %d (detected: %s)", myPlayerCamp, campDetected ? "YES" : "NO");
+                    ImGui::Separator();
+                    ImGui::TextColored(ImVec4(0,1,1,1), "HOOK POINTERS");
+                    ImGui::Text("COMDT_pack: %p", (void*)_COMDT_MULTI_GAME_PARAM_pack);
+                    ImGui::Text("set_iBattleResult: %p", (void*)_set_iBattleResult);
+                    ImGui::Text("OnGameOverMT: %p", (void*)_OnGameOverEventMainThread);
+                    ImGui::Text("SendBattleResult: %p", (void*)_SendBattleResult);
+                    ImGui::Text("HandleGameSettle: %p", (void*)_HandleGameSettle);
 
                     ImGui::EndChild();
                 }
