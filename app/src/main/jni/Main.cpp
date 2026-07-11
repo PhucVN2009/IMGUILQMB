@@ -288,7 +288,7 @@ ImGui::Combo("##ddd", (int*)&Type, "Tắt\0Win\0Lose\0");
         {
         case 0: win = false; lose = false; break;
         case 1: win = true; lose = false; break;
-        case 2: win = false; lose = false; break;
+        case 2: win = false; lose = true; break;
         }
 
                     ImGui::EndChild();
