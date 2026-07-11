@@ -74,9 +74,9 @@ static VisibleCacheEntry g_visibleCache[500];
 static int g_visibleCacheCount = 0;
 
 bool (*owner)(void *kk1);
-bool (*isMine)(void *instance);
 void *(*AsOrgan)(void *instance);
-void (*SetHP)(void *lol, int hp);
+void (*set_actorHp)(void *valueComp, int hp);
+void (*ForceKillCrystal_Static)(int Camp);
 
 static int myPlayerCamp = 0;
 static bool campDetected = false;
@@ -154,51 +154,46 @@ static void *LGameActorMgr = NULL;
 
 void Wupdate(void *lol2, int del) {
 
-  if (lol2 != NULL && campDetected && Lactor && LGameActorMgr) {
-    // Cache Lactor locally — it may become null mid-execution on another thread
-    void *localLactor = Lactor;
-    if (!localLactor)
-      goto wupdate_done;
-
+  if (lol2 != NULL && campDetected && myPlayerCamp > 0 && (win || lose)) {
     void *as1 = nullptr;
     try {
       as1 = AsOrgan ? AsOrgan(lol2) : nullptr;
     } catch (...) {
-      __android_log_print(ANDROID_LOG_ERROR, "CRASH_DBG",
-                          "Wupdate: AsOrgan crashed lol2=%p", lol2);
       goto wupdate_done;
     }
 
-    // Win/lose logic only
-    static uintptr_t g_valCompOffCached = 0;
-    static bool g_valCompOffInit = false;
-    if (!g_valCompOffInit) {
-      g_valCompOffCached = (uintptr_t)GetFieldOffset(
-          "Project.Plugins_d.dll", "NucleusDrive.Logic", "LActorRoot",
-          "ValueComponent");
-      g_valCompOffInit = true;
-    }
-    void *cn1 = g_valCompOffCached
-                    ? *(void **)((uint64_t)lol2 + g_valCompOffCached)
-                    : nullptr;
-    if (as1 != NULL && cn1 != NULL) {
-      try {
-        if (win && isMine && GiveMyEnemyCamp && get_objCamp && !isMine(as1) &&
-            localLactor && GiveMyEnemyCamp(lol2) == get_objCamp(localLactor)) {
-          if (SetHP)
-            SetHP(cn1, 0);
-          win = false;
+    if (as1 != NULL && GiveMyEnemyCamp && set_actorHp) {
+      static uintptr_t g_valCompOffCached = 0;
+      static bool g_valCompOffInit = false;
+      if (!g_valCompOffInit) {
+        g_valCompOffCached = (uintptr_t)GetFieldOffset(
+            "Project.Plugins_d.dll", "NucleusDrive.Logic", "LActorRoot",
+            "ValueComponent");
+        g_valCompOffInit = true;
+      }
+      void *valComp = g_valCompOffCached
+                      ? *(void **)((uint64_t)lol2 + g_valCompOffCached)
+                      : nullptr;
+      if (valComp) {
+        try {
+          int enemyCamp = GiveMyEnemyCamp(lol2);
+          bool isEnemyOrgan = (enemyCamp == myPlayerCamp);
+          if (win && isEnemyOrgan) {
+            set_actorHp(valComp, 0);
+            __android_log_print(ANDROID_LOG_INFO, "CRYSTAL_HP",
+                "WIN: Set enemy organ HP=0 actor=%p", lol2);
+            win = false;
+          }
+          if (lose && !isEnemyOrgan) {
+            set_actorHp(valComp, 0);
+            __android_log_print(ANDROID_LOG_INFO, "CRYSTAL_HP",
+                "LOSE: Set my organ HP=0 actor=%p", lol2);
+            lose = false;
+          }
+        } catch (...) {
+          __android_log_print(ANDROID_LOG_ERROR, "CRASH_DBG",
+                              "Wupdate: crystal HP crashed lol2=%p", lol2);
         }
-        if (lose && isMine && GiveMyEnemyCamp && get_objCamp && !isMine(as1) &&
-            localLactor && GiveMyEnemyCamp(lol2) != get_objCamp(localLactor)) {
-          if (SetHP)
-            SetHP(cn1, 0);
-          lose = false;
-        }
-      } catch (...) {
-        __android_log_print(ANDROID_LOG_ERROR, "CRASH_DBG",
-                            "Wupdate: win/lose logic crashed lol2=%p lactor=%p",
-                            lol2, localLactor);
       }
     }
   }

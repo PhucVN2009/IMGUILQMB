@@ -284,13 +284,13 @@ EGLBoolean _eglSwapBuffers(EGLDisplay dpy, EGLSurface surface) {
                     ImGui::BeginChild(OBFUSCATE("##ChildTab6"), ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetContentRegionAvail().y), false);
 
      ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.8f, 0.0f, 1.0f));
-     ImGui::Text(OBFUSCATE("--- Crystal HP ---"));
+     ImGui::Text(OBFUSCATE("--- Crystal HP (set HP=0) ---"));
      ImGui::PopStyleColor();
 
 ImGui::Combo("##ddd", (int*)&Type, "Tắt\0Win\0Lose\0");
 
-     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1, 1, 1, 1));
-     ImGui::TextWrapped("Chọn Win xong rồi tắt để không văng");
+     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.7f, 0.7f, 0.7f, 1.0f));
+     ImGui::TextWrapped("Set HP crystal địch/ta = 0. Chọn rồi tắt ngay.");
      ImGui::PopStyleColor();
      switch (Type)
         {
@@ -298,17 +298,48 @@ ImGui::Combo("##ddd", (int*)&Type, "Tắt\0Win\0Lose\0");
         case 1: win = true; lose = false; break;
         case 2: win = false; lose = true; break;
         }
+     ImGui::Text("AsOrgan: %p | set_actorHp: %p", (void*)AsOrgan, (void*)set_actorHp);
+
+     ImGui::Spacing();
+     ImGui::Separator();
+     ImGui::Spacing();
+
+     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.2f, 1.0f, 0.2f, 1.0f));
+     ImGui::Text(OBFUSCATE("--- ForceKillCrystal ---"));
+     ImGui::PopStyleColor();
+
+     if (ForceKillCrystal_Static && campDetected && myPlayerCamp > 0) {
+       int enemyCamp = (myPlayerCamp == 1) ? 2 : 1;
+       if (ImGui::Button(OBFUSCATE("Pha Crystal Dich (Win)"), ImVec2(-1, 40))) {
+         ForceKillCrystal_Static(enemyCamp);
+         __android_log_print(ANDROID_LOG_INFO, "FORCE_RESULT",
+             "ForceKillCrystal enemy camp=%d", enemyCamp);
+       }
+       if (ImGui::Button(OBFUSCATE("Pha Crystal Ta (Lose)"), ImVec2(-1, 40))) {
+         ForceKillCrystal_Static(myPlayerCamp);
+         __android_log_print(ANDROID_LOG_INFO, "FORCE_RESULT",
+             "ForceKillCrystal my camp=%d", myPlayerCamp);
+       }
+     } else {
+       ImGui::TextColored(ImVec4(1,0.3f,0.3f,1), "ForceKillCrystal: %p", (void*)ForceKillCrystal_Static);
+       ImGui::TextColored(ImVec4(1,0.3f,0.3f,1), "Camp: %d (detected: %s)",
+           myPlayerCamp, campDetected ? "YES" : "NO");
+     }
+
+     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.7f, 0.7f, 0.7f, 1.0f));
+     ImGui::TextWrapped("Goi ForceKillCrystal cua LobbyMsgHandler");
+     ImGui::PopStyleColor();
 
      ImGui::Spacing();
      ImGui::Separator();
      ImGui::Spacing();
 
      ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.2f, 0.2f, 1.0f));
-     ImGui::Text(OBFUSCATE("--- Ép Kết Quả Server ---"));
+     ImGui::Text(OBFUSCATE("--- Ep Ket Qua Packet ---"));
      ImGui::PopStyleColor();
 
      static int forceResultType = 0;
-     ImGui::Combo("##forceResult", &forceResultType, "Tắt\0Ép Win\0Ép Lose\0");
+     ImGui::Combo("##forceResult", &forceResultType, "Tat\0Ep Win\0Ep Lose\0");
      switch (forceResultType)
         {
         case 0: forceWinResult = false; forceLoseResult = false; break;
@@ -316,8 +347,8 @@ ImGui::Combo("##ddd", (int*)&Type, "Tắt\0Win\0Lose\0");
         case 2: forceWinResult = false; forceLoseResult = true; break;
         }
 
-     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1, 1, 1, 1));
-     ImGui::TextWrapped("Ép server ghi nhận kết quả Win/Lose cho tất cả chế độ PvP");
+     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.7f, 0.7f, 0.7f, 1.0f));
+     ImGui::TextWrapped("Sua packet COMDT_MULTI_GAME_PARAM truoc khi gui server");
      ImGui::PopStyleColor();
 
                     ImGui::EndChild();
@@ -425,9 +456,15 @@ ImGui::Combo("##ddd", (int*)&Type, "Tắt\0Win\0Lose\0");
                     ImGui::TextColored(ImVec4(1,0.2f,0.2f,1), "FORCE RESULT DEBUG");
                     ImGui::Text("forceWin: %s", forceWinResult ? "ON" : "OFF");
                     ImGui::Text("forceLose: %s", forceLoseResult ? "ON" : "OFF");
+                    ImGui::Text("win(crystal): %s  lose: %s", win ? "ON" : "OFF", lose ? "ON" : "OFF");
                     ImGui::Text("MyCamp: %d (detected: %s)", myPlayerCamp, campDetected ? "YES" : "NO");
                     ImGui::Separator();
-                    ImGui::TextColored(ImVec4(0,1,1,1), "HOOK POINTERS");
+                    ImGui::TextColored(ImVec4(0,1,1,1), "CRYSTAL METHODS");
+                    ImGui::Text("AsOrgan: %p", (void*)AsOrgan);
+                    ImGui::Text("set_actorHp: %p", (void*)set_actorHp);
+                    ImGui::Text("ForceKillCrystal: %p", (void*)ForceKillCrystal_Static);
+                    ImGui::Separator();
+                    ImGui::TextColored(ImVec4(0,1,1,1), "PACKET HOOKS");
                     ImGui::Text("COMDT_pack: %p", (void*)_COMDT_MULTI_GAME_PARAM_pack);
                     ImGui::Text("set_iBattleResult: %p", (void*)_set_iBattleResult);
                     ImGui::Text("OnGameOverMT: %p", (void*)_OnGameOverEventMainThread);
@@ -533,6 +570,13 @@ void *Init_Thread(void *) {
     actorHP = (int (*)(void *)) GetMethodOffset("Project.Plugins_d.dll", "NucleusDrive.Logic", "ValuePropertyComponent", "get_actorHp", 0);
     actorMaxHP = (int (*)(void *)) GetMethodOffset("Project.Plugins_d.dll", "NucleusDrive.Logic", "ValuePropertyComponent", "get_actorHpTotal", 0);
     get_actorSoulLevel = (int (*)(void *)) GetMethodOffset("Project.Plugins_d.dll", "NucleusDrive.Logic", "ValuePropertyComponent", "get_actorSoulLevel", 0);
+
+    // Crystal HP / Force Result methods
+    AsOrgan = (void *(*)(void *)) GetMethodOffset("Project.Plugins_d.dll", "NucleusDrive.Logic", "LActorRoot", "AsOrgan", 0);
+    set_actorHp = (void (*)(void *, int)) GetMethodOffset("Project.Plugins_d.dll", "NucleusDrive.Logic", "ValuePropertyComponent", "set_actorHp", 1);
+    ForceKillCrystal_Static = (void (*)(int)) GetMethodOffset("Project_d.dll", "Assets.Scripts.GameLogic", "LobbyMsgHandler", "ForceKillCrystal", 1);
+    __android_log_print(ANDROID_LOG_INFO, "ESP_INIT", "AsOrgan=%p set_actorHp=%p ForceKillCrystal=%p",
+        (void*)AsOrgan, (void*)set_actorHp, (void*)ForceKillCrystal_Static);
 
     // Set globals for Wupdate
     g_ValCompOff = PlayerESP.ValueComponent;
