@@ -299,6 +299,81 @@ def _make_return_true_proto():
     return p
 
 
+def inject_hotfix_true_multi(proto, specs, flag):
+    """Prepend raw-bytecode run-once install of several xlua.hotfix(...)->true.
+
+    specs: list of (class_name, method_name). All share one return-true child
+    proto and one xlua.hotfix reference. Globals via the proto's _ENV upvalue.
+    Each hotfix is independent; a nil class/method is skipped (guarded).
+    """
+    env = find_env_upval(proto)
+    if env is None:
+        raise ValueError("no _ENV upvalue")
+
+    kFlag = find_or_add_str_const(proto, flag)
+    kXlua = find_or_add_str_const(proto, 'xlua')
+    kHot  = find_or_add_str_const(proto, 'hotfix')
+    kCS   = find_or_add_str_const(proto, 'CS')
+
+    child = _make_return_true_proto()
+    proto.protos.append(child)
+    child_idx = len(proto.protos) - 1
+
+    b = proto.maxstacksize
+    RK = lambda k: k + 256
+
+    # We build the instruction list, then patch JMP targets to "end" afterwards.
+    code = []
+    jmp_to_end = []   # indices in `code` that must jump to end
+
+    def emit(instr): code.append(instr)
+
+    # run-once guard
+    emit(iABC(OP_GETTABUP, b, env, RK(kFlag)))      # R[b]=_ENV[flag]
+    emit(iABC(OP_TEST, b, 0, 1))                     # if set -> end
+    jmp_to_end.append(len(code)); emit(0)            # JMP placeholder
+    emit(iABC(OP_LOADBOOL, b, 1, 0))                 # true
+    emit(iABC(OP_SETTABUP, env, RK(kFlag), b))       # flag=true
+    # xlua.hotfix into R[b]
+    emit(iABC(OP_GETTABUP, b, env, RK(kXlua)))       # R[b]=xlua
+    emit(iABC(OP_TEST, b, 0, 0)); jmp_to_end.append(len(code)); emit(0)
+    emit(iABC(OP_GETTABLE, b, b, RK(kHot)))          # R[b]=xlua.hotfix
+    emit(iABC(OP_TEST, b, 0, 0)); jmp_to_end.append(len(code)); emit(0)
+    # CS into R[b+1] (kept for all specs)
+    emit(iABC(OP_GETTABUP, b + 1, env, RK(kCS)))     # R[b+1]=CS
+    emit(iABC(OP_TEST, b + 1, 0, 0)); jmp_to_end.append(len(code)); emit(0)
+
+    # for each spec: R[b+2]=CS[class]; if ok: R[b+2]=hotfix ; args
+    # We need contiguous call frame: func + 3 args. Put a fresh copy each time
+    # at R[b+2].. using R[b]=hotfix, R[b+1]=CS.
+    for class_name, method_name in specs:
+        kCls = find_or_add_str_const(proto, class_name)
+        kMeth = find_or_add_str_const(proto, method_name)
+        # R[b+2] = CS[class]; skip this spec if nil (jump over its call)
+        emit(iABC(OP_GETTABLE, b + 2, b + 1, RK(kCls)))   # R[b+2]=CS[class]
+        emit(iABC(OP_TEST, b + 2, 0, 0))                  # if nil skip 4
+        skip_from = len(code); emit(0)                    # JMP over this spec's 4 instrs
+        emit(iABC(OP_MOVE if False else 18, b + 4, b, 0)) # R[b+4]=hotfix (copy)  (MOVE op=18)
+        emit(iABx(OP_LOADK, b + 6, kMeth))                # R[b+6]=method
+        emit(iABx(OP_CLOSURE, b + 7, child_idx))          # R[b+7]=closure
+        # rearrange to contiguous: call needs func at X, args X+1,X+2,X+3
+        # use R[b+4]=hotfix, R[b+5]=CS[class], R[b+6]=method, R[b+7]=closure
+        emit(iABC(18, b + 5, b + 2, 0))                   # R[b+5]=CS[class]
+        emit(iABC(OP_CALL, b + 4, 4, 1))                  # hotfix(cls,method,closure)
+        # patch the skip JMP: from skip_from, jump to end of this spec block
+        target = len(code)
+        code[skip_from] = iAsBx(OP_JMP, 0, target - (skip_from + 1))
+
+    end = len(code)
+    for j in jmp_to_end:
+        code[j] = iAsBx(OP_JMP, 0, end - (j + 1))
+
+    proto.code = code + proto.code
+    if proto.lineinfo:
+        proto.lineinfo = [proto.lineinfo[0]] * len(code) + proto.lineinfo
+    proto.maxstacksize = max(proto.maxstacksize, b + 8)
+
+
 def inject_hotfix_true_native(proto, class_name, method_name, flag):
     """Prepend, in raw bytecode (no loadstring), a run-once:
         if not _ENV[flag] then _ENV[flag]=true
