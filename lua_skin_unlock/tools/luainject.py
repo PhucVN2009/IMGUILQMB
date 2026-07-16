@@ -274,6 +274,52 @@ def inject_add_all_skin(proto):
 
 OP_LOADBOOL = 1
 OP_SETTABUP = 8
+OP_LOADK = 14
+
+
+def inject_load_string_once(proto, src, flag='__aov_hotfix_done', loader='loadstring'):
+    """Prepend a run-once call:  if not _ENV[flag] then _ENV[flag]=true; loader(src)() end
+
+    `src` is arbitrary Lua SOURCE compiled at runtime by the game's `loadstring`
+    (or `load`). This lets us run xlua.hotfix code without compiling to the
+    game's custom bytecode ourselves. Whole block sits before instruction 0.
+    """
+    env = find_env_upval(proto)
+    if env is None:
+        raise ValueError("no _ENV upvalue")
+
+    kFlag = find_or_add_str_const(proto, flag)
+    kLoad = find_or_add_str_const(proto, loader)
+    # add the source as a string constant, keep its index
+    proto.constants.append((4, src.encode('utf-8')))
+    kSrc = len(proto.constants) - 1
+
+    base = proto.maxstacksize
+    RK = lambda k: k + 256
+
+    body = [
+        iABC(OP_LOADBOOL, base, 1, 0),                 # R[base] = true
+        iABC(OP_SETTABUP, env, RK(kFlag), base),       # _ENV[flag] = true
+        iABC(OP_GETTABUP, base, env, RK(kLoad)),       # R[base] = loadstring
+        iABC(OP_TEST,     base, 0, 0),                 # loader present?
+        iAsBx(OP_JMP,     0, 5),                        # no -> skip rest of body
+        iABx(OP_LOADK,    base + 1, kSrc),             # R[base+1] = src
+        iABC(OP_CALL,     base, 2, 2),                 # R[base] = loadstring(src)
+        iABC(OP_TEST,     base, 0, 0),                 # chunk compiled?
+        iAsBx(OP_JMP,     0, 1),                        # no -> skip call
+        iABC(OP_CALL,     base, 1, 1),                 # chunk()
+    ]
+    guard = [
+        iABC(OP_GETTABUP, base, env, RK(kFlag)),       # [0] R[base] = _ENV[flag]
+        iABC(OP_TEST,     base, 0, 1),                  # [1] flag falsy -> run; truthy -> jump
+        iAsBx(OP_JMP,     0, len(body)),               # [2] skip body if already done
+    ]
+    block = guard + body
+
+    proto.code = block + proto.code
+    if proto.lineinfo:
+        proto.lineinfo = [proto.lineinfo[0]] * len(block) + proto.lineinfo
+    proto.maxstacksize = max(proto.maxstacksize, base + 2)
 
 
 def inject_add_all_skin_once(proto, flag='__aov_allskin_done'):
