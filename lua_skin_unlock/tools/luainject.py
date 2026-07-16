@@ -275,6 +275,88 @@ def inject_add_all_skin(proto):
 OP_LOADBOOL = 1
 OP_SETTABUP = 8
 OP_LOADK = 14
+OP_RETURN = 11
+OP_CLOSURE = 36
+
+
+def _make_return_true_proto():
+    """Build a child proto for: function(...) return true end (0 upvalues)."""
+    p = Proto()
+    p.source = None
+    p.linedefined = 0
+    p.lastlinedefined = 0
+    p.numparams = 0
+    p.is_vararg = 1          # accept any args
+    p.maxstacksize = 2
+    p.code = [iABC(OP_LOADBOOL, 0, 1, 0),   # R0 = true
+              iABC(OP_RETURN, 0, 2, 0)]      # return R0
+    p.constants = []
+    p.upvalues = []
+    p.protos = []
+    p.lineinfo = [0, 0]
+    p.locvars = []
+    p.upvalnames = []
+    return p
+
+
+def inject_hotfix_true_native(proto, class_name, method_name, flag):
+    """Prepend, in raw bytecode (no loadstring), a run-once:
+        if not _ENV[flag] then _ENV[flag]=true
+            if xlua and xlua.hotfix and CS and CS[class_name] then
+                xlua.hotfix(CS[class_name], method_name, function(...) return true end)
+            end
+        end
+    Globals (xlua, CS) are reached via the proto's own _ENV upvalue, so no
+    sandboxed loadstring env is involved.
+    """
+    env = find_env_upval(proto)
+    if env is None:
+        raise ValueError("no _ENV upvalue")
+
+    kFlag = find_or_add_str_const(proto, flag)
+    kXlua = find_or_add_str_const(proto, 'xlua')
+    kHot  = find_or_add_str_const(proto, 'hotfix')
+    kCS   = find_or_add_str_const(proto, 'CS')
+    kCls  = find_or_add_str_const(proto, class_name)
+    kMeth = find_or_add_str_const(proto, method_name)
+
+    child = _make_return_true_proto()
+    proto.protos.append(child)
+    child_idx = len(proto.protos) - 1
+
+    b = proto.maxstacksize          # base register
+    RK = lambda k: k + 256
+    END = 20                        # first original instruction index (block length)
+
+    block = [
+        iABC(OP_GETTABUP, b, env, RK(kFlag)),      # 0  R[b]=_ENV[flag]
+        iABC(OP_TEST,     b, 0, 1),                 # 1  flag set? -> jump end
+        iAsBx(OP_JMP,     0, END - 3),              # 2
+        iABC(OP_LOADBOOL, b, 1, 0),                 # 3  R[b]=true
+        iABC(OP_SETTABUP, env, RK(kFlag), b),       # 4  _ENV[flag]=true
+        iABC(OP_GETTABUP, b, env, RK(kXlua)),       # 5  R[b]=xlua
+        iABC(OP_TEST,     b, 0, 0),                 # 6  xlua? else end
+        iAsBx(OP_JMP,     0, END - 8),              # 7
+        iABC(OP_GETTABLE, b, b, RK(kHot)),          # 8  R[b]=xlua.hotfix
+        iABC(OP_TEST,     b, 0, 0),                 # 9
+        iAsBx(OP_JMP,     0, END - 11),             # 10
+        iABC(OP_GETTABUP, b + 1, env, RK(kCS)),     # 11 R[b+1]=CS
+        iABC(OP_TEST,     b + 1, 0, 0),             # 12
+        iAsBx(OP_JMP,     0, END - 14),             # 13
+        iABC(OP_GETTABLE, b + 1, b + 1, RK(kCls)),  # 14 R[b+1]=CS[class]
+        iABC(OP_TEST,     b + 1, 0, 0),             # 15
+        iAsBx(OP_JMP,     0, END - 17),             # 16
+        iABx(OP_LOADK,    b + 2, kMeth),            # 17 R[b+2]=method_name
+        iABC(OP_CLOSURE,  b + 3, 0, 0) | (child_idx << 14),  # 18 R[b+3]=closure  (Bx=child_idx)
+        iABC(OP_CALL,     b, 4, 1),                 # 19 xlua.hotfix(cls,name,closure)
+    ]
+    # fix CLOSURE encoding (iABx form): op=36, A=b+3, Bx=child_idx
+    block[18] = iABx(OP_CLOSURE, b + 3, child_idx)
+
+    proto.code = block + proto.code
+    if proto.lineinfo:
+        proto.lineinfo = [proto.lineinfo[0]] * len(block) + proto.lineinfo
+    proto.maxstacksize = max(proto.maxstacksize, b + 4)
 
 
 def inject_load_string_once(proto, src, flag='__aov_hotfix_done', loader='loadstring'):
