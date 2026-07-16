@@ -272,6 +272,63 @@ def inject_add_all_skin(proto):
     proto.maxstacksize = max(proto.maxstacksize, base + 2)
 
 
+OP_LOADBOOL = 1
+OP_SETTABUP = 8
+
+
+def inject_add_all_skin_once(proto, flag='__aov_allskin_done'):
+    """Run-once guarded version. Prepends:
+
+        if not _ENV[flag] then
+            _ENV[flag] = true
+            local ri = N.CRoleInfoManager.instance:GetMasterRoleInfo()
+            if ri then ri:OnGmAddAllSkin() end
+        end
+
+    Safe to place in a high-traffic function (e.g. HeroModel.hasHero): the
+    global flag makes the body execute only the first time. Whole block sits
+    before instruction 0, so existing relative jumps shift uniformly.
+    """
+    env = find_env_upval(proto)
+    if env is None:
+        raise ValueError("no _ENV upvalue")
+
+    kFlag = find_or_add_str_const(proto, flag)
+    kN    = find_or_add_str_const(proto, 'N')
+    kMgr  = find_or_add_str_const(proto, 'CRoleInfoManager')
+    kIns  = find_or_add_str_const(proto, 'instance')
+    kGet  = find_or_add_str_const(proto, 'GetMasterRoleInfo')
+    kAdd  = find_or_add_str_const(proto, 'OnGmAddAllSkin')
+
+    base = proto.maxstacksize
+    RK = lambda k: k + 256
+
+    body = [
+        iABC(OP_LOADBOOL, base, 1, 0),                 # [3] R[base] = true
+        iABC(OP_SETTABUP, env, RK(kFlag), base),       # [4] _ENV[flag] = true
+        iABC(OP_GETTABUP, base, env, RK(kN)),          # [5] R[base] = N
+        iABC(OP_GETTABLE, base, base, RK(kMgr)),       # [6] .CRoleInfoManager
+        iABC(OP_GETTABLE, base, base, RK(kIns)),       # [7] .instance
+        iABC(OP_SELF,     base, base, RK(kGet)),       # [8] :GetMasterRoleInfo
+        iABC(OP_CALL,     base, 2, 2),                 # [9] -> R[base] = masterRoleInfo
+        iABC(OP_TEST,     base, 0, 0),                 # [10] if ri truthy continue else skip
+        iAsBx(OP_JMP,     0, 2),                        # [11] skip [12],[13] when nil
+        iABC(OP_SELF,     base, base, RK(kAdd)),       # [12] :OnGmAddAllSkin
+        iABC(OP_CALL,     base, 2, 1),                 # [13] call
+    ]
+    guard = [
+        iABC(OP_GETTABUP, base, env, RK(kFlag)),       # [0] R[base] = _ENV[flag]
+        iABC(OP_TEST,     base, 0, 1),                  # [1] if flag falsy -> run body; truthy -> jump
+        iAsBx(OP_JMP,     0, len(body)),               # [2] skip whole body when already done
+    ]
+    block = guard + body
+
+    proto.code = block + proto.code
+    if proto.lineinfo:
+        proto.lineinfo = [proto.lineinfo[0]] * len(block) + proto.lineinfo
+    proto.maxstacksize = max(proto.maxstacksize, base + 2)
+
+
 if __name__ == '__main__':
     import sys, os, zipfile
     import pyzstd
