@@ -2349,6 +2349,70 @@ void SetVisible(void *instance, int camp, bool bVisible,
   return _SetVisible(instance, camp, bVisible, forceSync);
 }
 
+// ============================================================================
+// Lua dumper: hook Assets.LuaAdapter.LuaLoader.LuaLoaderImpl(ref string) and
+// write the byte[] it RETURNS to disk. That byte[] is the lua bytecode AFTER the
+// game has already decompressed (224a00ef/zstd) OR decrypted (224a6700/AES) it,
+// so we get the plaintext lua for every module the game loads WITHOUT needing
+// the AES key. Toggle it on in the menu, then open the screens whose lua you
+// want (Kho Tủ Đồ / chọn tướng / vào trận). Files land in .../lua_dump/.
+// ============================================================================
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <cstdio>
+#include <string>
+
+bool g_DumpLua = false;   // menu toggle
+int g_DumpLuaCount = 0;   // unique files written this session
+static const char *kLuaDumpDir =
+    "/storage/emulated/0/Android/data/lqmhax.online/lua_dump";
+
+static std::string CsStrToAscii(monoString *s) {
+  std::string out;
+  if (!s)
+    return out;
+  int n = s->getLength();
+  if (n <= 0 || n > 4096)
+    return out;
+  char16_t *c = (char16_t *)s->getChars();
+  for (int i = 0; i < n; i++) {
+    char16_t ch = c[i];
+    out += (ch >= 32 && ch < 127) ? (char)ch : '_';
+  }
+  return out;
+}
+
+void *(*_LuaLoaderImpl)(monoString **moduleName, void *method);
+void *LuaLoaderImpl(monoString **moduleName, void *method) {
+  void *ret = _LuaLoaderImpl(moduleName, method);
+  if (g_DumpLua && ret != NULL) {
+    Il2CppArray<uint8_t> *arr = (Il2CppArray<uint8_t> *)ret;
+    int len = arr->max_length;
+    if (len > 0 && len <= 16 * 1024 * 1024) {
+      std::string name =
+          (moduleName && *moduleName) ? CsStrToAscii(*moduleName) : "";
+      if (name.empty())
+        name = "unknown_" + std::to_string(g_DumpLuaCount);
+      std::string safe;
+      for (char c : name)
+        safe += (c == '/' || c == '\\' || c == ':') ? '#' : c;
+      mkdir("/storage/emulated/0/Android/data/lqmhax.online", 0777);
+      mkdir(kLuaDumpDir, 0777);
+      std::string path = std::string(kLuaDumpDir) + "/" + safe + ".luac";
+      struct stat st;
+      if (stat(path.c_str(), &st) != 0) { // dedupe: write each module once
+        FILE *f = fopen(path.c_str(), "wb");
+        if (f) {
+          fwrite(arr->getPointer(), 1, (size_t)len, f);
+          fclose(f);
+          g_DumpLuaCount++;
+        }
+      }
+    }
+  }
+  return ret;
+}
+
 // Hien Unti
 void (*_ShowSkillStateInfo)(void *instance, bool bShow);
 void ShowSkillStateInfo(void *instance, bool bShow) {

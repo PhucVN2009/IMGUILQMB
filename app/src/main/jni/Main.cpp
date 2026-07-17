@@ -250,7 +250,15 @@ EGLBoolean _eglSwapBuffers(EGLDisplay dpy, EGLSurface surface) {
                     ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Hiện Avatar"), &MemoryHack.Avatar);
                     ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Hiện Lịch Sử Đấu"), &MemoryHack.History);
                     ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Hiện Hồi Chiêu"), &MemoryHack.ShowCooldown);
+                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Dump Lua Files"), &g_DumpLua);
                     ImGui::EndTable();
+
+                    if (g_DumpLua) {
+                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.7f, 0.7f, 0.7f, 1.0f));
+                        ImGui::TextWrapped(OBFUSCATE("Bat roi mo Kho Tu Do / chon tuong / vao tran de dump. File luu o /Android/data/lqmhax.online/lua_dump/"));
+                        ImGui::PopStyleColor();
+                        ImGui::Text(OBFUSCATE("Da dump: %d file"), g_DumpLuaCount);
+                    }
 
                     ImGui::Spacing();
                     ImGui::Text(OBFUSCATE("Aimbot Menu"));
@@ -626,6 +634,11 @@ void *Init_Thread(void *) {
 
     // === Visibility ===
     HOOKAU("Project.Plugins_d.dll", "NucleusDrive.Logic", "LVActorLinker", "SetVisible", 3, SetVisible, _SetVisible);
+
+    // === Lua dumper (writes decrypted lua bytecode from LuaLoaderImpl) ===
+    HOOKAU("Project_d.dll", "Assets.LuaAdapter", "LuaLoader", "LuaLoaderImpl", 1, LuaLoaderImpl, _LuaLoaderImpl);
+    if (!_LuaLoaderImpl)
+        HOOKAU("Assembly-CSharp.dll", "Assets.LuaAdapter", "LuaLoader", "LuaLoaderImpl", 1, LuaLoaderImpl, _LuaLoaderImpl);
 
     // Find LVActorLinker field pointing to LActorRoot
     {
