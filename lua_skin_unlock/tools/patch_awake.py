@@ -18,7 +18,7 @@ import pyzstd
 from patch_cust import map_methods
 
 LOADBOOL, RETURN, GETTABUP, MOVE, CALL = 1, 11, 3, 18, 4
-SETTABLE, LOADK = 7, 14
+SETTABLE, LOADK, GETTABLE = 7, 14, 19
 
 
 def A(op, a, b, c):
@@ -99,6 +99,44 @@ def force_awake_data_max(p):
         p.lineinfo = p.lineinfo[:ins_at] + [p.lineinfo[ins_at]] * len(block) + p.lineinfo[ins_at:]
 
 
+def force_on_sync(p):
+    # UpdateAwakeSkinData copies the server's real wake level into the entry every
+    # sync (undoing our forcing). Append a block that overwrites level/masks to MAX
+    # AFTER the server copy, so the entry is always max -> lobby AND battle read max.
+    # entry = R1, up0 = AwakeSkinSys. Uses entry.dwWakeSkinID as the skin key.
+    k_max = const_idx(p, 'GetMaxSkinWakeLevel') or L.find_or_add_str_const(p, 'GetMaxSkinWakeLevel')
+    k_id = const_idx(p, 'dwWakeSkinID')
+    k_bwl = const_idx(p, 'bWakeLevel')
+    k_bcw = const_idx(p, 'bCurWearLevel')
+    k_wm = const_idx(p, 'ullWakeFeatureMask')
+    k_wearm = const_idx(p, 'ullWearFeatureMask')
+    k_val = len(p.constants)
+    p.constants.append((0x13, struct.pack('<q', 0x7FFFFFFFFFFFFFFF)))
+    block = [
+        A(GETTABUP, 2, 0, k_max + 256),   # R2 = AwakeSkinSys.GetMaxSkinWakeLevel
+        A(GETTABLE, 3, 1, k_id + 256),    # R3 = entry.dwWakeSkinID
+        A(CALL, 2, 2, 2),                 # R2 = max level
+        A(SETTABLE, 1, k_bwl + 256, 2),   # entry.bWakeLevel = max
+        A(SETTABLE, 1, k_bcw + 256, 2),   # entry.bCurWearLevel = max
+        L.iABx(LOADK, 3, k_val),          # R3 = all-bits
+        A(SETTABLE, 1, k_wm + 256, 3),    # entry.ullWakeFeatureMask = all
+        A(SETTABLE, 1, k_wearm + 256, 3), # entry.ullWearFeatureMask = all
+    ]
+    ins_at = len(p.code) - 1              # right before the final RETURN
+    n = len(block)
+    for i in range(ins_at):               # fix JMPs that cross the insertion point
+        ins = p.code[i]
+        if (ins & 0x3F) == 20:
+            sbx = ((ins >> 14) & 0x3FFFF) - 131071
+            if i + 1 + sbx >= ins_at:
+                p.code[i] = L.iAsBx(20, (ins >> 6) & 0xFF, sbx + n)
+    p.code = p.code[:ins_at] + block + p.code[ins_at:]
+    if p.maxstacksize < 4:
+        p.maxstacksize = 4
+    if p.lineinfo:
+        p.lineinfo = p.lineinfo[:ins_at] + [p.lineinfo[ins_at]] * n + p.lineinfo[ins_at:]
+
+
 def patch_showmodel_use_getorcreate(p):
     # ShowModelFeatures returns early when GetAwakeSkinData is nil (unowned skin) ->
     # no model, "Chưa có tướng, trang phục". Point that call to
@@ -161,6 +199,7 @@ def main():
                 patch_current_level_to_max(lf.main.protos[m['GetCurrentPromoteLevel']])
                 prepend_featureitems_maxlevel(lf.main.protos[m['GetFeatureItems']])
                 force_awake_data_max(lf.main.protos[m['GetOrCreateAwakeSkinData']])
+                force_on_sync(lf.main.protos[m['UpdateAwakeSkinData']])
                 print(f"  IsFeatureUnlock[{m['IsFeatureUnlock']}] -> true (after nil guards)")
                 print(f"  IsLevelAwaken[{m['IsLevelAwaken']}] -> true")
                 print(f"  GetCurrentPromoteLevel[{m['GetCurrentPromoteLevel']}] -> max level")
