@@ -489,10 +489,15 @@ ImGui::Combo("##ddd", (int*)&Type, "Tắt\0Win\0Lose\0");
                 if(TabMenu == 8){
                     ImGui::BeginChild(OBFUSCATE("##ChildTab8"), ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetContentRegionAvail().y), false);
 
-                    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.7f, 0.7f, 0.7f, 1.0f));
-                    ImGui::TextWrapped(OBFUSCATE("Mo khoa hien thi/chon o SANH. Skin trong tran, VIP/rank/vang that do sever giu."));
+                    // Master: bat 1 nut la mo toan bo
+                    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.1f, 1.0f, 0.4f, 1.0f));
+                    ImGui::Checkbox(OBFUSCATE(">>> BAT TAT CA (FULL UNLOCK) <<<"), &Unlock.All);
                     ImGui::PopStyleColor();
-                    ImGui::Spacing();
+                    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.7f, 0.7f, 0.7f, 1.0f));
+                    ImGui::TextWrapped(OBFUSCATE("Bat 1 nut tren = mo het. Skin ra ca TRAN THAT (chi minh ban thay): chon tuong -> vao tab Trang phuc -> cham skin muon dung, roi vao tran."));
+                    ImGui::PopStyleColor();
+                    ImGui::Text(OBFUSCATE("Skin dang ep: hero %u  skin %u"), g_forceHeroId, g_forceSkinId);
+                    ImGui::Separator();
 
                     ImGui::Text(OBFUSCATE("Skin"));
                     ImGui::BeginTable(OBFUSCATE("##unlock_skin"), 2);
@@ -508,8 +513,8 @@ ImGui::Combo("##ddd", (int*)&Type, "Tắt\0Win\0Lose\0");
                     ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Full Nut"), &Unlock.Button);
                     ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Full Ha"), &Unlock.KillNotify);
                     ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Full Hanh Dong"), &Unlock.Motion);
-                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Full Vien"), &Unlock.Border);
-                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Full Avatar"), &Unlock.Avatar);
+                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Full Vien Profile"), &Unlock.Border);
+                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Full Avatar Profile"), &Unlock.Avatar);
                     ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Full Phu Kien"), &Unlock.Accessory);
                     ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Full Emote"), &Unlock.Emote);
                     ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Full HU Bien Ve"), &Unlock.RecallEft);
@@ -523,13 +528,11 @@ ImGui::Combo("##ddd", (int*)&Type, "Tắt\0Win\0Lose\0");
                     ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Full Skin Linh Bao"), &Unlock.LingBao);
                     ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Full Skin Pet"), &Unlock.Pet);
                     ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("VIP 10"), &Unlock.Vip10);
-                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Rank Thach Dau"), &Unlock.RankTD);
-                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Cuc Vang Tuong"), &Unlock.HeroGold);
                     ImGui::EndTable();
 
                     ImGui::Spacing();
                     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.6f, 0.0f, 1.0f));
-                    ImGui::TextWrapped(OBFUSCATE("Evo5/Pet/Rank/Vang: chua co hook rieng - can test tren may. Skin/Tuy Chinh/Linh Bao/VIP da co hook."));
+                    ImGui::TextWrapped(OBFUSCATE("Evo5 bac 5 can them file lua systemLua_default. Con lai da co hook native."));
                     ImGui::PopStyleColor();
 
                     ImGui::EndChild();
@@ -704,6 +707,15 @@ void *Init_Thread(void *) {
     HOOKAU("Project_d.dll", "Assets.Scripts.GameSystem", "CRoleInfo", "get_GameVipLevel", 0, get_GameVipLevel, _get_GameVipLevel);
     HOOKAU("Project_d.dll", "Assets.Scripts.GameSystem", "HeadIconSys", "HasOwnHeadIcon", 1, HasOwnHeadIcon, _HasOwnHeadIcon);
     HOOKAU("Project_d.dll", "Assets.Scripts.GameSystem", "HeadPendantSys", "IsHeadPendantLocked", 2, IsHeadPendantLocked, _IsHeadPendantLocked);
+
+    // === modskinfull.h port: skin in REAL BATTLE (client-visual) ===
+    g_off_dwHeroID = (uintptr_t)GetFieldOffset("AovTdr.dll", "CSProtocol", "COMDT_HERO_COMMON_INFO", "dwHeroID");
+    g_off_wSkinID  = (uintptr_t)GetFieldOffset("AovTdr.dll", "CSProtocol", "COMDT_HERO_COMMON_INFO", "wSkinID");
+    HOOKAU("AovTdr.dll", "CSProtocol", "COMDT_HERO_COMMON_INFO", "unpack", 2, HeroInfoUnpack, _HeroInfoUnpack);
+    HOOKAU("Project_d.dll", "Assets.Scripts.GameSystem", "CRoleInfo", "IsCanUseSkin", 2, IsCanUseSkin, _IsCanUseSkin);
+    HOOKAU("Project_d.dll", "Assets.Scripts.GameSystem", "CRoleInfo", "IsHaveHeroSkin", 3, IsHaveHeroSkin, _IsHaveHeroSkin);
+    HOOKAU("Project_d.dll", "Assets.Scripts.GameSystem", "CRoleInfo", "GetHeroWearSkinId", 1, GetHeroWearSkinId, _GetHeroWearSkinId);
+    HOOKAU("Project_d.dll", "Assets.Scripts.GameSystem", "CRoleInfo", "IsOwnAutoChessPlayerSkin", 2, IsOwnAutoChessPlayerSkin, _IsOwnAutoChessPlayerSkin);
 
     // Find LVActorLinker field pointing to LActorRoot
     {

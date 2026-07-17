@@ -2420,6 +2420,7 @@ void *LuaLoaderImpl(monoString **moduleName, void *method) {
 // rendering and real server values (VIP/rank/gold) are server-authoritative.
 // ============================================================================
 struct _Unlock {
+  bool All;         // master: bật là mở toàn bộ
   bool Skin;        // full skin
   bool Evo5;        // evo 5 (sảnh)
   bool HiddenSkin;  // skin bị ẩn
@@ -2445,7 +2446,7 @@ struct _Unlock {
 // về/gia tốc/hiệu ứng hạ) all resolve ownership through the same Dimension
 // backend, so any of those toggles opens the whole Dimension check.
 static inline bool AnyDimUnlock() {
-  return Unlock.Button || Unlock.KillNotify || Unlock.SoldierSkin ||
+  return Unlock.All || Unlock.Button || Unlock.KillNotify || Unlock.SoldierSkin ||
          Unlock.Motion || Unlock.Accessory || Unlock.Emote ||
          Unlock.RecallEft || Unlock.SpeedEft || Unlock.KillEft;
 }
@@ -2453,7 +2454,7 @@ static inline bool AnyDimUnlock() {
 // CSkinInfo.IsOwnSkin(uint skinId, ulong ownBits) -- static
 bool (*_IsOwnSkin)(uint32_t skinId, uint64_t ownBits, void *mi);
 bool IsOwnSkin(uint32_t skinId, uint64_t ownBits, void *mi) {
-  if (Unlock.Skin || Unlock.HiddenSkin)
+  if (Unlock.All || Unlock.Skin || Unlock.HiddenSkin || Unlock.Evo5)
     return true;
   return _IsOwnSkin(skinId, ownBits, mi);
 }
@@ -2485,7 +2486,7 @@ bool IsOwnDimensionForeverByUnitID(uint32_t unitID, void *mi) {
 // CSacredAnimalSystem.IsOwnLingBaoUseable(CLingBaoUseable, bool) -- instance
 bool (*_IsOwnLingBaoUseable)(void *thiz, void *useable, bool checkAll, void *mi);
 bool IsOwnLingBaoUseable(void *thiz, void *useable, bool checkAll, void *mi) {
-  if (Unlock.LingBao)
+  if (Unlock.All || Unlock.LingBao)
     return true;
   return _IsOwnLingBaoUseable(thiz, useable, checkAll, mi);
 }
@@ -2493,7 +2494,7 @@ bool IsOwnLingBaoUseable(void *thiz, void *useable, bool checkAll, void *mi) {
 // CSacredAnimalSystem.IsOwnLingBaoByUnitID(uint) -- instance
 bool (*_IsOwnLingBaoByUnitID)(void *thiz, uint32_t unitID, void *mi);
 bool IsOwnLingBaoByUnitID(void *thiz, uint32_t unitID, void *mi) {
-  if (Unlock.LingBao)
+  if (Unlock.All || Unlock.LingBao)
     return true;
   return _IsOwnLingBaoByUnitID(thiz, unitID, mi);
 }
@@ -2503,7 +2504,7 @@ bool (*_IsOwnLingBaoBySuitID)(void *thiz, uint32_t suitID, bool checkAll,
                               void *mi);
 bool IsOwnLingBaoBySuitID(void *thiz, uint32_t suitID, bool checkAll,
                           void *mi) {
-  if (Unlock.LingBao)
+  if (Unlock.All || Unlock.LingBao)
     return true;
   return _IsOwnLingBaoBySuitID(thiz, suitID, checkAll, mi);
 }
@@ -2512,15 +2513,84 @@ bool IsOwnLingBaoBySuitID(void *thiz, uint32_t suitID, bool checkAll,
 uint32_t (*_get_GameVipLevel)(void *thiz, void *mi);
 uint32_t get_GameVipLevel(void *thiz, void *mi) {
   uint32_t v = _get_GameVipLevel(thiz, mi);
-  if (Unlock.Vip10)
+  if (Unlock.All || Unlock.Vip10)
     return 10;
   return v;
+}
+
+// ============================================================================
+// modskinfull.h port: skin IN REAL BATTLE (client-visual, only you see it).
+// The skin you view/select in the pick screen is captured by IsCanUseSkin, then
+// COMDT_HERO_COMMON_INFO::unpack rewrites wSkinID of your own hero when the
+// server data arrives -> your hero renders that skin in battle.
+// ============================================================================
+static uint32_t g_forceHeroId = 0, g_forceSkinId = 0;      // captured selection
+static uintptr_t g_off_dwHeroID = 0, g_off_wSkinID = 0;    // resolved in Main.cpp
+
+static inline bool SkinUnlockOn() {
+  return Unlock.All || Unlock.Skin || Unlock.HiddenSkin || Unlock.Evo5;
+}
+
+// CRoleInfo.IsCanUseSkin(uint heroId, uint skinId) -- capture + allow
+bool (*_IsCanUseSkin)(void *thiz, uint32_t heroId, uint32_t skinId, void *mi);
+bool IsCanUseSkin(void *thiz, uint32_t heroId, uint32_t skinId, void *mi) {
+  if (SkinUnlockOn()) {
+    if (heroId != 0) {
+      g_forceHeroId = heroId;
+      g_forceSkinId = skinId;
+    }
+    return true;
+  }
+  return _IsCanUseSkin(thiz, heroId, skinId, mi);
+}
+
+// CRoleInfo.IsHaveHeroSkin(uint heroId, uint skinId, bool) -- own
+bool (*_IsHaveHeroSkin)(void *thiz, uint32_t heroId, uint32_t skinId, bool inc,
+                        void *mi);
+bool IsHaveHeroSkin(void *thiz, uint32_t heroId, uint32_t skinId, bool inc,
+                    void *mi) {
+  if (SkinUnlockOn())
+    return true;
+  return _IsHaveHeroSkin(thiz, heroId, skinId, inc, mi);
+}
+
+// CRoleInfo.GetHeroWearSkinId(uint heroId) -- report the forced skin as worn
+uint32_t (*_GetHeroWearSkinId)(void *thiz, uint32_t heroId, void *mi);
+uint32_t GetHeroWearSkinId(void *thiz, uint32_t heroId, void *mi) {
+  if (SkinUnlockOn() && heroId == g_forceHeroId && g_forceSkinId != 0)
+    return g_forceSkinId;
+  return _GetHeroWearSkinId(thiz, heroId, mi);
+}
+
+// CRoleInfo.IsOwnAutoChessPlayerSkin(uint heroId, int skindwId) -- pet (cờ liên quân)
+bool (*_IsOwnAutoChessPlayerSkin)(void *thiz, uint32_t heroId, int32_t sid,
+                                  void *mi);
+bool IsOwnAutoChessPlayerSkin(void *thiz, uint32_t heroId, int32_t sid,
+                              void *mi) {
+  if (Unlock.All || Unlock.Pet)
+    return true;
+  return _IsOwnAutoChessPlayerSkin(thiz, heroId, sid, mi);
+}
+
+// CSProtocol.COMDT_HERO_COMMON_INFO.unpack(ref TdrReadBuf, uint) -- the core:
+// after the struct is deserialized from the server, swap wSkinID of our hero.
+void *(*_HeroInfoUnpack)(void *instance, void *srcBuf, uint32_t cutVer, void *mi);
+void *HeroInfoUnpack(void *instance, void *srcBuf, uint32_t cutVer, void *mi) {
+  void *r = _HeroInfoUnpack(instance, srcBuf, cutVer, mi);
+  if (SkinUnlockOn() && instance != NULL && g_forceHeroId != 0 &&
+      g_forceSkinId != 0 && g_off_wSkinID != 0) {
+    uint32_t hid = *(uint32_t *)((uintptr_t)instance + g_off_dwHeroID);
+    if (hid == g_forceHeroId)
+      *(uint16_t *)((uintptr_t)instance + g_off_wSkinID) =
+          (uint16_t)g_forceSkinId;
+  }
+  return r;
 }
 
 // HeadIconSys.HasOwnHeadIcon(int id) -- instance (avatar)
 bool (*_HasOwnHeadIcon)(void *thiz, int32_t id, void *mi);
 bool HasOwnHeadIcon(void *thiz, int32_t id, void *mi) {
-  if (Unlock.Avatar)
+  if (Unlock.All || Unlock.Avatar)
     return true;
   return _HasOwnHeadIcon(thiz, id, mi);
 }
@@ -2529,7 +2599,7 @@ bool HasOwnHeadIcon(void *thiz, int32_t id, void *mi) {
 // report NOT locked.
 bool (*_IsHeadPendantLocked)(void *thiz, uint32_t id, uint32_t param, void *mi);
 bool IsHeadPendantLocked(void *thiz, uint32_t id, uint32_t param, void *mi) {
-  if (Unlock.Border)
+  if (Unlock.All || Unlock.Border)
     return false;
   return _IsHeadPendantLocked(thiz, id, param, mi);
 }
