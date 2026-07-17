@@ -48,6 +48,46 @@ def patch_return_true(p):
         p.maxstacksize = r + 1
 
 
+def prepend_featureitems_maxlevel(p):
+    # GetFeatureItems(heroSkin R0, level R1): overwrite R1 = GetMaxSkinWakeLevel(R0)
+    # so the level cap becomes MAX -> returns features for every level. up0=AwakeSkinSys.
+    k = const_idx(p, 'GetMaxSkinWakeLevel')
+    if k is None:
+        k = L.find_or_add_str_const(p, 'GetMaxSkinWakeLevel')
+    block = [
+        A(GETTABUP, 5, 0, k + 256),   # R5 = AwakeSkinSys.GetMaxSkinWakeLevel
+        A(MOVE, 6, 0, 0),             # R6 = heroSkin
+        A(CALL, 5, 2, 2),             # R5 = GetMaxSkinWakeLevel(heroSkin)
+        A(MOVE, 1, 5, 0),             # R1 = R5  (overwrite the level param)
+    ]
+    p.code = block + p.code
+    if p.maxstacksize < 7:
+        p.maxstacksize = 7
+    if p.lineinfo:
+        p.lineinfo = [p.lineinfo[0]] * len(block) + p.lineinfo
+
+
+def patch_showmodel_use_getorcreate(p):
+    # ShowModelFeatures returns early when GetAwakeSkinData is nil (unowned skin) ->
+    # no model, "Chưa có tướng, trang phục". Point that call to
+    # GetOrCreateAwakeSkinData, which builds default awake data (bWakeLevel=0) so the
+    # render proceeds. Only repoint the key const (single-instruction change).
+    old = const_idx(p, 'GetAwakeSkinData')
+    assert old is not None
+    new = const_idx(p, 'GetOrCreateAwakeSkinData')
+    if new is None:
+        new = L.find_or_add_str_const(p, 'GetOrCreateAwakeSkinData')
+    for i, ins in enumerate(p.code):
+        op = ins & 0x3F
+        C = (ins >> 14) & 0x1FF
+        if op == 3 and C >= 256 and (C - 256) == old:   # GETTABUP up[B][GetAwakeSkinData]
+            a = (ins >> 6) & 0xFF
+            b = (ins >> 23) & 0x1FF
+            p.code[i] = L.iABC(3, a, b, new + 256)
+            return True
+    return False
+
+
 def patch_current_level_to_max(p):
     # return AwakeSkinSys.GetMaxSkinWakeLevel(heroSkin).  upval0 = AwakeSkinSys.
     k = const_idx(p, 'GetMaxSkinWakeLevel')
@@ -77,18 +117,24 @@ def main():
     with zipfile.ZipFile(src, 'r') as zf:
         for item in zf.infolist():
             base = item.filename.split('/')[-1].replace('.bytes', '')
-            if base != 'AwakeSkinSys_lua':
+            if base not in ('AwakeSkinSys_lua', 'AwakeSkinHeroView_lua'):
                 continue
             raw = zf.read(item.filename)
             data = pyzstd.decompress(raw[8:], zdict) if raw[:4] == b'\x22\x4a\x00\xef' else raw
             lf = L.parse_file(data)
             m = map_methods(lf)
-            patch_is_feature_unlock(lf.main.protos[m['IsFeatureUnlock']])
-            patch_return_true(lf.main.protos[m['IsLevelAwaken']])
-            patch_current_level_to_max(lf.main.protos[m['GetCurrentPromoteLevel']])
-            print(f"  IsFeatureUnlock[{m['IsFeatureUnlock']}] -> true (after nil guards)")
-            print(f"  IsLevelAwaken[{m['IsLevelAwaken']}] -> true")
-            print(f"  GetCurrentPromoteLevel[{m['GetCurrentPromoteLevel']}] -> max level")
+            if base == 'AwakeSkinSys_lua':
+                patch_is_feature_unlock(lf.main.protos[m['IsFeatureUnlock']])
+                patch_return_true(lf.main.protos[m['IsLevelAwaken']])
+                patch_current_level_to_max(lf.main.protos[m['GetCurrentPromoteLevel']])
+                prepend_featureitems_maxlevel(lf.main.protos[m['GetFeatureItems']])
+                print(f"  IsFeatureUnlock[{m['IsFeatureUnlock']}] -> true (after nil guards)")
+                print(f"  IsLevelAwaken[{m['IsLevelAwaken']}] -> true")
+                print(f"  GetCurrentPromoteLevel[{m['GetCurrentPromoteLevel']}] -> max level")
+                print(f"  GetFeatureItems[{m['GetFeatureItems']}] -> cap at max level (all features)")
+            else:  # AwakeSkinHeroView_lua
+                ok = patch_showmodel_use_getorcreate(lf.main.protos[m['ShowModelFeatures']])
+                print(f"  ShowModelFeatures[{m['ShowModelFeatures']}] -> GetOrCreate (render unowned): {ok}")
             newdata = L.ser_file(lf)
             L.parse_file(newdata)
             comp = pyzstd.compress(newdata, 17, zdict)
