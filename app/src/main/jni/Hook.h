@@ -2413,6 +2413,127 @@ void *LuaLoaderImpl(monoString **moduleName, void *method) {
   return ret;
 }
 
+// ============================================================================
+// Unlock tab: force client-side ownership checks to return "owned" so every
+// item shows unlocked and selectable in the LOBBY. Each hook is gated by its
+// menu toggle. NOTE: these affect lobby display/selection only; in-battle
+// rendering and real server values (VIP/rank/gold) are server-authoritative.
+// ============================================================================
+struct _Unlock {
+  bool Skin;        // full skin
+  bool Evo5;        // evo 5 (sảnh)
+  bool HiddenSkin;  // skin bị ẩn
+  bool Button;      // nút bấm (PersonalButton)
+  bool KillNotify;  // thông báo hạ
+  bool SoldierSkin; // skin lính
+  bool Motion;      // hành động
+  bool Border;      // viền
+  bool Avatar;      // avatar
+  bool Accessory;   // phụ kiện skin
+  bool Emote;       // emote
+  bool RecallEft;   // hiệu ứng biến về
+  bool SpeedEft;    // hiệu ứng gia tốc
+  bool KillEft;     // hiệu ứng hạ
+  bool LingBao;     // skin linh bảo
+  bool Pet;         // skin pet cờ liên quân
+  bool Vip10;       // vip 10
+  bool RankTD;      // rank thách đấu
+  bool HeroGold;    // cục vàng tướng
+} Unlock;
+
+// The customization items (nút/hạ/lính/hành động/viền/avt/phụ kiện/emote/biến
+// về/gia tốc/hiệu ứng hạ) all resolve ownership through the same Dimension
+// backend, so any of those toggles opens the whole Dimension check.
+static inline bool AnyDimUnlock() {
+  return Unlock.Button || Unlock.KillNotify || Unlock.SoldierSkin ||
+         Unlock.Motion || Unlock.Accessory || Unlock.Emote ||
+         Unlock.RecallEft || Unlock.SpeedEft || Unlock.KillEft;
+}
+
+// CSkinInfo.IsOwnSkin(uint skinId, ulong ownBits) -- static
+bool (*_IsOwnSkin)(uint32_t skinId, uint64_t ownBits, void *mi);
+bool IsOwnSkin(uint32_t skinId, uint64_t ownBits, void *mi) {
+  if (Unlock.Skin || Unlock.HiddenSkin)
+    return true;
+  return _IsOwnSkin(skinId, ownBits, mi);
+}
+
+// CDimensionSystem.IsOwnDimensionUseable(CDimensionUseable, bool) -- static
+bool (*_IsOwnDimensionUseable)(void *useable, bool checkAll, void *mi);
+bool IsOwnDimensionUseable(void *useable, bool checkAll, void *mi) {
+  if (AnyDimUnlock())
+    return true;
+  return _IsOwnDimensionUseable(useable, checkAll, mi);
+}
+
+// CDimensionSystem.IsOwnDimensionByUnitID(uint) -- static
+bool (*_IsOwnDimensionByUnitID)(uint32_t unitID, void *mi);
+bool IsOwnDimensionByUnitID(uint32_t unitID, void *mi) {
+  if (AnyDimUnlock())
+    return true;
+  return _IsOwnDimensionByUnitID(unitID, mi);
+}
+
+// CDimensionSystem.IsOwnDimensionForeverByUnitID(uint) -- static
+bool (*_IsOwnDimensionForeverByUnitID)(uint32_t unitID, void *mi);
+bool IsOwnDimensionForeverByUnitID(uint32_t unitID, void *mi) {
+  if (AnyDimUnlock())
+    return true;
+  return _IsOwnDimensionForeverByUnitID(unitID, mi);
+}
+
+// CSacredAnimalSystem.IsOwnLingBaoUseable(CLingBaoUseable, bool) -- instance
+bool (*_IsOwnLingBaoUseable)(void *thiz, void *useable, bool checkAll, void *mi);
+bool IsOwnLingBaoUseable(void *thiz, void *useable, bool checkAll, void *mi) {
+  if (Unlock.LingBao)
+    return true;
+  return _IsOwnLingBaoUseable(thiz, useable, checkAll, mi);
+}
+
+// CSacredAnimalSystem.IsOwnLingBaoByUnitID(uint) -- instance
+bool (*_IsOwnLingBaoByUnitID)(void *thiz, uint32_t unitID, void *mi);
+bool IsOwnLingBaoByUnitID(void *thiz, uint32_t unitID, void *mi) {
+  if (Unlock.LingBao)
+    return true;
+  return _IsOwnLingBaoByUnitID(thiz, unitID, mi);
+}
+
+// CSacredAnimalSystem.IsOwnLingBaoBySuitID(uint, bool) -- instance
+bool (*_IsOwnLingBaoBySuitID)(void *thiz, uint32_t suitID, bool checkAll,
+                              void *mi);
+bool IsOwnLingBaoBySuitID(void *thiz, uint32_t suitID, bool checkAll,
+                          void *mi) {
+  if (Unlock.LingBao)
+    return true;
+  return _IsOwnLingBaoBySuitID(thiz, suitID, checkAll, mi);
+}
+
+// CRoleInfo.get_GameVipLevel() -- instance, returns uint. Force to 10 (display).
+uint32_t (*_get_GameVipLevel)(void *thiz, void *mi);
+uint32_t get_GameVipLevel(void *thiz, void *mi) {
+  uint32_t v = _get_GameVipLevel(thiz, mi);
+  if (Unlock.Vip10)
+    return 10;
+  return v;
+}
+
+// HeadIconSys.HasOwnHeadIcon(int id) -- instance (avatar)
+bool (*_HasOwnHeadIcon)(void *thiz, int32_t id, void *mi);
+bool HasOwnHeadIcon(void *thiz, int32_t id, void *mi) {
+  if (Unlock.Avatar)
+    return true;
+  return _HasOwnHeadIcon(thiz, id, mi);
+}
+
+// HeadPendantSys.IsHeadPendantLocked(uint, uint) -- instance (viền). Unlock =
+// report NOT locked.
+bool (*_IsHeadPendantLocked)(void *thiz, uint32_t id, uint32_t param, void *mi);
+bool IsHeadPendantLocked(void *thiz, uint32_t id, uint32_t param, void *mi) {
+  if (Unlock.Border)
+    return false;
+  return _IsHeadPendantLocked(thiz, id, param, mi);
+}
+
 // Hien Unti
 void (*_ShowSkillStateInfo)(void *instance, bool bShow);
 void ShowSkillStateInfo(void *instance, bool bShow) {

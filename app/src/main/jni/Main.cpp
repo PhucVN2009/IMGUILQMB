@@ -209,6 +209,10 @@ EGLBoolean _eglSwapBuffers(EGLDisplay dpy, EGLSurface surface) {
                 if(ImGui::Button(OBFUSCATE(ICON_FA_WRENCH " Debug"), ImVec2(170, 60))) TabMenu = 7;
                 ImGui::PopStyleColor();
 
+                ImGui::PushStyleColor(ImGuiCol_Button, TabMenu == 8 ? ImGui::GetStyle().Colors[ImGuiCol_ButtonHovered] : ImGui::GetStyle().Colors[ImGuiCol_Button]);
+                if(ImGui::Button(OBFUSCATE(ICON_FA_UNLOCK " Unlock"), ImVec2(170, 60))) TabMenu = 8;
+                ImGui::PopStyleColor();
+
                 ImGui::NextColumn();
 
                 if(TabMenu == 1){
@@ -482,6 +486,55 @@ ImGui::Combo("##ddd", (int*)&Type, "Tắt\0Win\0Lose\0");
                     ImGui::EndChild();
                 }
 
+                if(TabMenu == 8){
+                    ImGui::BeginChild(OBFUSCATE("##ChildTab8"), ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetContentRegionAvail().y), false);
+
+                    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.7f, 0.7f, 0.7f, 1.0f));
+                    ImGui::TextWrapped(OBFUSCATE("Mo khoa hien thi/chon o SANH. Skin trong tran, VIP/rank/vang that do sever giu."));
+                    ImGui::PopStyleColor();
+                    ImGui::Spacing();
+
+                    ImGui::Text(OBFUSCATE("Skin"));
+                    ImGui::BeginTable(OBFUSCATE("##unlock_skin"), 2);
+                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Full Skin"), &Unlock.Skin);
+                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Full Evo 5"), &Unlock.Evo5);
+                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Full Skin An"), &Unlock.HiddenSkin);
+                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Full Skin Linh"), &Unlock.SoldierSkin);
+                    ImGui::EndTable();
+
+                    ImGui::Spacing();
+                    ImGui::Text(OBFUSCATE("Tuy Chinh (Customization)"));
+                    ImGui::BeginTable(OBFUSCATE("##unlock_cust"), 2);
+                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Full Nut"), &Unlock.Button);
+                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Full Ha"), &Unlock.KillNotify);
+                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Full Hanh Dong"), &Unlock.Motion);
+                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Full Vien"), &Unlock.Border);
+                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Full Avatar"), &Unlock.Avatar);
+                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Full Phu Kien"), &Unlock.Accessory);
+                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Full Emote"), &Unlock.Emote);
+                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Full HU Bien Ve"), &Unlock.RecallEft);
+                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Full HU Gia Toc"), &Unlock.SpeedEft);
+                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Full HU Ha"), &Unlock.KillEft);
+                    ImGui::EndTable();
+
+                    ImGui::Spacing();
+                    ImGui::Text(OBFUSCATE("Khac"));
+                    ImGui::BeginTable(OBFUSCATE("##unlock_other"), 2);
+                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Full Skin Linh Bao"), &Unlock.LingBao);
+                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Full Skin Pet"), &Unlock.Pet);
+                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("VIP 10"), &Unlock.Vip10);
+                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Rank Thach Dau"), &Unlock.RankTD);
+                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Cuc Vang Tuong"), &Unlock.HeroGold);
+                    ImGui::EndTable();
+
+                    ImGui::Spacing();
+                    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.6f, 0.0f, 1.0f));
+                    ImGui::TextWrapped(OBFUSCATE("Evo5/Pet/Rank/Vang: chua co hook rieng - can test tren may. Skin/Tuy Chinh/Linh Bao/VIP da co hook."));
+                    ImGui::PopStyleColor();
+
+                    ImGui::EndChild();
+                }
+
                 ImGui::EndPopup();
             }
         }else{
@@ -639,6 +692,18 @@ void *Init_Thread(void *) {
     HOOKAU("Project_d.dll", "Assets.LuaAdapter", "LuaLoader", "LuaLoaderImpl", 1, LuaLoaderImpl, _LuaLoaderImpl);
     if (!_LuaLoaderImpl)
         HOOKAU("Assembly-CSharp.dll", "Assets.LuaAdapter", "LuaLoader", "LuaLoaderImpl", 1, LuaLoaderImpl, _LuaLoaderImpl);
+
+    // === Unlock (client-side ownership checks -> owned) ===
+    HOOKAU("Project_d.dll", "Assets.Scripts.GameSystem", "CSkinInfo", "IsOwnSkin", 2, IsOwnSkin, _IsOwnSkin);
+    HOOKAU("Project_d.dll", "Assets.Scripts.GameSystem", "CDimensionSystem", "IsOwnDimensionUseable", 2, IsOwnDimensionUseable, _IsOwnDimensionUseable);
+    HOOKAU("Project_d.dll", "Assets.Scripts.GameSystem", "CDimensionSystem", "IsOwnDimensionByUnitID", 1, IsOwnDimensionByUnitID, _IsOwnDimensionByUnitID);
+    HOOKAU("Project_d.dll", "Assets.Scripts.GameSystem", "CDimensionSystem", "IsOwnDimensionForeverByUnitID", 1, IsOwnDimensionForeverByUnitID, _IsOwnDimensionForeverByUnitID);
+    HOOKAU("Project_d.dll", "Assets.Scripts.GameSystem", "CSacredAnimalSystem", "IsOwnLingBaoUseable", 2, IsOwnLingBaoUseable, _IsOwnLingBaoUseable);
+    HOOKAU("Project_d.dll", "Assets.Scripts.GameSystem", "CSacredAnimalSystem", "IsOwnLingBaoByUnitID", 1, IsOwnLingBaoByUnitID, _IsOwnLingBaoByUnitID);
+    HOOKAU("Project_d.dll", "Assets.Scripts.GameSystem", "CSacredAnimalSystem", "IsOwnLingBaoBySuitID", 2, IsOwnLingBaoBySuitID, _IsOwnLingBaoBySuitID);
+    HOOKAU("Project_d.dll", "Assets.Scripts.GameSystem", "CRoleInfo", "get_GameVipLevel", 0, get_GameVipLevel, _get_GameVipLevel);
+    HOOKAU("Project_d.dll", "Assets.Scripts.GameSystem", "HeadIconSys", "HasOwnHeadIcon", 1, HasOwnHeadIcon, _HasOwnHeadIcon);
+    HOOKAU("Project_d.dll", "Assets.Scripts.GameSystem", "HeadPendantSys", "IsHeadPendantLocked", 2, IsHeadPendantLocked, _IsHeadPendantLocked);
 
     // Find LVActorLinker field pointing to LActorRoot
     {
