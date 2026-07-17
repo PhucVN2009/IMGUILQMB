@@ -18,6 +18,7 @@ import pyzstd
 from patch_cust import map_methods
 
 LOADBOOL, RETURN, GETTABUP, MOVE, CALL = 1, 11, 3, 18, 4
+SETTABLE, LOADK = 7, 14
 
 
 def A(op, a, b, c):
@@ -65,6 +66,37 @@ def prepend_featureitems_maxlevel(p):
         p.maxstacksize = 7
     if p.lineinfo:
         p.lineinfo = [p.lineinfo[0]] * len(block) + p.lineinfo
+
+
+def force_awake_data_max(p):
+    # GetOrCreateAwakeSkinData returns the actual CRoleInfo.HeroSkinWakeDatas entry
+    # (a C# object). Before returning it, force its fields to MAX so the C# renderer
+    # (which reads that object) shows the skin fully evolved everywhere:
+    #   entry.bWakeLevel     = GetMaxSkinWakeLevel(heroSkin)
+    #   entry.bCurWearLevel  = same
+    #   entry.ullWakeFeatureMask = all feature bits
+    # up0 = AwakeSkinSys.  Entry is in R1, heroSkin in R0 at the return point.
+    k_max = const_idx(p, 'GetMaxSkinWakeLevel') or L.find_or_add_str_const(p, 'GetMaxSkinWakeLevel')
+    k_bwl = const_idx(p, 'bWakeLevel')
+    k_bcw = const_idx(p, 'bCurWearLevel')
+    k_mask = const_idx(p, 'ullWakeFeatureMask')
+    k_val = len(p.constants)
+    p.constants.append((0x13, struct.pack('<q', 0x7FFFFFFFFFFFFFFF)))  # all feature bits
+    block = [
+        A(GETTABUP, 2, 0, k_max + 256),   # R2 = AwakeSkinSys.GetMaxSkinWakeLevel
+        A(MOVE, 3, 0, 0),                 # R3 = heroSkin
+        A(CALL, 2, 2, 2),                 # R2 = max level
+        A(SETTABLE, 1, k_bwl + 256, 2),   # entry.bWakeLevel = max
+        A(SETTABLE, 1, k_bcw + 256, 2),   # entry.bCurWearLevel = max
+        L.iABx(LOADK, 4, k_val),          # R4 = 0x7FFFFFFFFFFFFFFF
+        A(SETTABLE, 1, k_mask + 256, 4),  # entry.ullWakeFeatureMask = all bits
+    ]
+    ins_at = len(p.code) - 2              # right before the final `return entry`
+    p.code = p.code[:ins_at] + block + p.code[ins_at:]
+    if p.maxstacksize < 5:
+        p.maxstacksize = 5
+    if p.lineinfo:
+        p.lineinfo = p.lineinfo[:ins_at] + [p.lineinfo[ins_at]] * len(block) + p.lineinfo[ins_at:]
 
 
 def patch_showmodel_use_getorcreate(p):
@@ -128,10 +160,12 @@ def main():
                 patch_return_true(lf.main.protos[m['IsLevelAwaken']])
                 patch_current_level_to_max(lf.main.protos[m['GetCurrentPromoteLevel']])
                 prepend_featureitems_maxlevel(lf.main.protos[m['GetFeatureItems']])
+                force_awake_data_max(lf.main.protos[m['GetOrCreateAwakeSkinData']])
                 print(f"  IsFeatureUnlock[{m['IsFeatureUnlock']}] -> true (after nil guards)")
                 print(f"  IsLevelAwaken[{m['IsLevelAwaken']}] -> true")
                 print(f"  GetCurrentPromoteLevel[{m['GetCurrentPromoteLevel']}] -> max level")
                 print(f"  GetFeatureItems[{m['GetFeatureItems']}] -> cap at max level (all features)")
+                print(f"  GetOrCreateAwakeSkinData[{m['GetOrCreateAwakeSkinData']}] -> force entry fields to MAX")
             else:  # AwakeSkinHeroView_lua
                 ok = patch_showmodel_use_getorcreate(lf.main.protos[m['ShowModelFeatures']])
                 print(f"  ShowModelFeatures[{m['ShowModelFeatures']}] -> GetOrCreate (render unowned): {ok}")
