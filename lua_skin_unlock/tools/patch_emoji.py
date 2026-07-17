@@ -37,7 +37,7 @@ def rewrite_emoji(proto):
     k_sys = K(proto, 'AOV.Customization.BattleEffect.BattleEffectSystem')
     k_getlist = K(proto, 'getBattleEmojiIdListBySlotType')
     k_bcast = K(proto, 'BroadCastEvent')
-    k_evt = K(proto, 'CHANGE_BATTLE_EMOJI_RSP_EVENT')
+    k_evt = K(proto, 'CHANGE_BATTLE_EMOJI_NTF_EVENT')  # the slot view (TabPageView) listens to NTF, not RSP
     A = L.iABC
     # params: R0=slotType, R1=index, R2=emojiId
     code = [
