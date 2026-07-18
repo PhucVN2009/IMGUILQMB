@@ -213,6 +213,10 @@ EGLBoolean _eglSwapBuffers(EGLDisplay dpy, EGLSurface surface) {
                 if(ImGui::Button(OBFUSCATE(ICON_FA_UNLOCK " Unlock"), ImVec2(170, 60))) TabMenu = 8;
                 ImGui::PopStyleColor();
 
+                ImGui::PushStyleColor(ImGuiCol_Button, TabMenu == 9 ? ImGui::GetStyle().Colors[ImGuiCol_ButtonHovered] : ImGui::GetStyle().Colors[ImGuiCol_Button]);
+                if(ImGui::Button(OBFUSCATE(ICON_FA_MAP_MARKER " Spam"), ImVec2(170, 60))) TabMenu = 9;
+                ImGui::PopStyleColor();
+
                 ImGui::NextColumn();
 
                 if(TabMenu == 1){
@@ -538,6 +542,42 @@ ImGui::Combo("##ddd", (int*)&Type, "Tắt\0Win\0Lose\0");
                     ImGui::EndChild();
                 }
 
+                if(TabMenu == 9){
+                    ImGui::BeginChild(OBFUSCATE("##ChildTab9"), ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetContentRegionAvail().y), false);
+
+                    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.3f, 0.3f, 1.0f));
+                    ImGui::TextWrapped(OBFUSCATE("SPAM PING MAP - Gui signal lien tuc tren minimap, tat ca nguoi choi deu thay ping cua ban."));
+                    ImGui::PopStyleColor();
+                    ImGui::Separator();
+
+                    if (g_SendSignalBtnPos) {
+                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.1f, 1.0f, 0.4f, 1.0f));
+                        ImGui::Checkbox(OBFUSCATE("BAT SPAM PING"), &SpamPing.Enable);
+                        ImGui::PopStyleColor();
+
+                        ImGui::SliderFloat(OBFUSCATE("Tan suat (giay)"), &SpamPing.Interval, 0.05f, 2.0f, "%.2f s");
+                        ImGui::SliderInt(OBFUSCATE("Loai signal"), &SpamPing.SignalID, 1, 10);
+
+                        ImGui::Separator();
+                        ImGui::Checkbox(OBFUSCATE("Vi tri ngau nhien"), &SpamPing.RandomPos);
+                        if (!SpamPing.RandomPos) {
+                            ImGui::SliderInt(OBFUSCATE("X (map)"), &SpamPing.FixedX, -100000, 100000);
+                            ImGui::SliderInt(OBFUSCATE("Z (map)"), &SpamPing.FixedZ, -100000, 100000);
+                        }
+
+                        ImGui::Spacing();
+                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.7f, 0.7f, 0.7f, 1.0f));
+                        ImGui::TextWrapped(OBFUSCATE("Signal ID: 1=Tap trung, 2=Lui, 3=Tan cong, 4=Canh bao, 5+=khac. Tan suat cang nho = spam cang nhanh."));
+                        ImGui::PopStyleColor();
+                    } else {
+                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.5f, 0.0f, 1.0f));
+                        ImGui::TextWrapped(OBFUSCATE("SendCommand_SignalBtn_Position CHUA TIM THAY. Vao tran truoc roi thu lai."));
+                        ImGui::PopStyleColor();
+                    }
+
+                    ImGui::EndChild();
+                }
+
                 ImGui::EndPopup();
             }
         }else{
@@ -716,6 +756,17 @@ void *Init_Thread(void *) {
     HOOKAU("Project_d.dll", "Assets.Scripts.GameSystem", "CRoleInfo", "IsHaveHeroSkin", 3, IsHaveHeroSkin, _IsHaveHeroSkin);
     HOOKAU("Project_d.dll", "Assets.Scripts.GameSystem", "CRoleInfo", "GetHeroWearSkinId", 1, GetHeroWearSkinId, _GetHeroWearSkinId);
     HOOKAU("Project_d.dll", "Assets.Scripts.GameSystem", "CRoleInfo", "IsOwnAutoChessPlayerSkin", 2, IsOwnAutoChessPlayerSkin, _IsOwnAutoChessPlayerSkin);
+
+    // === Spam Ping Map ===
+    g_SendSignalBtnPos = (SendSignalBtnPos_t)GetMethodOffset("Project_d.dll", "Assets.Scripts.GameSystem", "SignalPanel", "SendCommand_SignalBtn_Position", 5);
+    if (!g_SendSignalBtnPos)
+        g_SendSignalBtnPos = (SendSignalBtnPos_t)GetMethodOffset("Project_d.dll", "Assets.Scripts.GameSystem", "SignalPanel", "SendCommand_SignalBtn_Position", 3);
+    if (!g_SendSignalBtnPos)
+        g_SendSignalBtnPos = (SendSignalBtnPos_t)GetMethodOffset("Project_d.dll", "", "SignalPanel", "SendCommand_SignalBtn_Position", 5);
+    if (!g_SendSignalBtnPos)
+        g_SendSignalBtnPos = (SendSignalBtnPos_t)GetMethodOffset("Project_d.dll", "", "SignalPanel", "SendCommand_SignalBtn_Position", 3);
+    __android_log_print(ANDROID_LOG_INFO, "SPAM_PING", "SendCommand_SignalBtn_Position=%p", (void*)g_SendSignalBtnPos);
+    srand(time(nullptr));
 
     // Find LVActorLinker field pointing to LActorRoot
     {

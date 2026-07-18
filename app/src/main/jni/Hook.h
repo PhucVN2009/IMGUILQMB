@@ -47,6 +47,26 @@ auto mask_botro = "xxxxxxxxxxxx???xxxxxxxxx";
 bool win, lose, offwinlose;
 bool forceWinResult = false, forceLoseResult = false;
 
+// ============================================================================
+// Spam Ping Map: gửi signal liên tục trên minimap, all client đều thấy
+// ============================================================================
+struct VInt3_t { int x, y, z; };
+
+// SendCommand_SignalBtn_Position(int signalID, VInt3 worldPos, uint targetObjID, uint uparam, int iparam, MethodInfo*)
+typedef void (*SendSignalBtnPos_t)(int signalID, VInt3_t worldPos, uint32_t targetObjID, uint32_t uparam, int iparam, void *mi);
+static SendSignalBtnPos_t g_SendSignalBtnPos = nullptr;
+
+struct _SpamPing {
+  bool Enable = false;
+  float Interval = 0.3f;     // giây giữa mỗi ping
+  int SignalID = 1;           // loại signal (1-5)
+  bool RandomPos = true;      // random vị trí
+  int FixedX = 0;             // vị trí cố định (VInt3, *1000)
+  int FixedZ = 0;
+} SpamPing;
+
+static float g_lastPingTime = 0.0f;
+
 int (*ActorLinker_COM_PLAYERCAMP)(void *instance);
 int (*LActorRoot_COM_PLAYERCAMP)(void *instance);
 
@@ -1382,6 +1402,25 @@ void ESPUpdateResponse(void *instance) {
     }
     // If !campDetected, keep old buffer (waiting for camp detection)
   }
+  }
+
+  // === Spam Ping Map ===
+  if (SpamPing.Enable && g_SendSignalBtnPos) {
+    float now = GetTimeSeconds();
+    if (now - g_lastPingTime >= SpamPing.Interval) {
+      g_lastPingTime = now;
+      VInt3_t pos;
+      if (SpamPing.RandomPos) {
+        pos.x = (rand() % 200000) - 100000; // -100 ~ +100 map units (*1000)
+        pos.y = 0;
+        pos.z = (rand() % 200000) - 100000;
+      } else {
+        pos.x = SpamPing.FixedX;
+        pos.y = 0;
+        pos.z = SpamPing.FixedZ;
+      }
+      g_SendSignalBtnPos(SpamPing.SignalID, pos, 0, 0xFFFFFFFF, 0x7FFFFFFF, nullptr);
+    }
   }
 
 esp_done:
