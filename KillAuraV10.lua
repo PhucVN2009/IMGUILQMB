@@ -1,5 +1,5 @@
 -- ============================================================
--- KILL AURA + ESP MOBILE V10 ULTRA - TRUE UNIVERSAL EDITION
+-- KILL AURA + ESP MOBILE V10 ULTRA - FLUENT UI EDITION
 -- Work ALL game types: Shooter, Sword, RPG, Simulator,
 -- Fighting, Anime, Horror, Tycoon, Custom Framework
 -- ALL methods: Remote, Spy, Touch, Module, Physics, CFrame,
@@ -34,6 +34,13 @@ local StarterGui = game:GetService("StarterGui")
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
 local Mouse = LocalPlayer:GetMouse()
+
+-- ============================================================
+-- LOAD FLUENT UI LIBRARY
+-- ============================================================
+local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
+local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
 
 -- ============================================================
 -- SETTINGS
@@ -116,66 +123,11 @@ local Settings = {
     AntiVoid = false,
     NoClip = false,
 
-    -- UI
-    Minimized = false,
-    CurrentTab = "KillAura",
-    DebugMode = false,
-    Theme = "Purple",
-
     -- Internal
-    _Notifications = {},
+    DebugMode = false,
     _Connections = {},
     _FOVCircle = nil,
 }
-
--- ============================================================
--- THEME COLORS
--- ============================================================
-local Themes = {
-    Purple = {
-        Accent = Color3.fromRGB(120, 60, 200),
-        AccentLight = Color3.fromRGB(150, 100, 230),
-        Background = Color3.fromRGB(18, 18, 24),
-        Surface = Color3.fromRGB(28, 28, 38),
-        SurfaceLight = Color3.fromRGB(40, 40, 55),
-        Text = Color3.fromRGB(240, 240, 240),
-        TextDim = Color3.fromRGB(160, 160, 180),
-        Success = Color3.fromRGB(50, 200, 80),
-        Danger = Color3.fromRGB(220, 50, 50),
-        Warning = Color3.fromRGB(255, 180, 50),
-        Info = Color3.fromRGB(80, 160, 255),
-    },
-    Red = {
-        Accent = Color3.fromRGB(200, 40, 40),
-        AccentLight = Color3.fromRGB(230, 80, 80),
-        Background = Color3.fromRGB(20, 16, 16),
-        Surface = Color3.fromRGB(35, 25, 25),
-        SurfaceLight = Color3.fromRGB(55, 35, 35),
-        Text = Color3.fromRGB(240, 240, 240),
-        TextDim = Color3.fromRGB(180, 160, 160),
-        Success = Color3.fromRGB(50, 200, 80),
-        Danger = Color3.fromRGB(255, 60, 60),
-        Warning = Color3.fromRGB(255, 180, 50),
-        Info = Color3.fromRGB(80, 160, 255),
-    },
-    Blue = {
-        Accent = Color3.fromRGB(40, 80, 200),
-        AccentLight = Color3.fromRGB(80, 120, 230),
-        Background = Color3.fromRGB(16, 18, 24),
-        Surface = Color3.fromRGB(25, 28, 40),
-        SurfaceLight = Color3.fromRGB(35, 40, 58),
-        Text = Color3.fromRGB(240, 240, 240),
-        TextDim = Color3.fromRGB(160, 170, 190),
-        Success = Color3.fromRGB(50, 200, 80),
-        Danger = Color3.fromRGB(220, 50, 50),
-        Warning = Color3.fromRGB(255, 180, 50),
-        Info = Color3.fromRGB(100, 180, 255),
-    },
-}
-
-local function getTheme()
-    return Themes[Settings.Theme] or Themes.Purple
-end
 
 -- ============================================================
 -- DETECT EXECUTOR CAPABILITIES
@@ -205,1469 +157,359 @@ local function log(msg)
     if Settings.DebugMode then print("[KillAura V10U] " .. tostring(msg)) end
 end
 
-log("Capabilities: Drawing=" .. tostring(hasDrawing) ..
-    " FS=" .. tostring(hasFileSystem) ..
-    " Hook=" .. tostring(hasHookMeta) ..
-    " GC=" .. tostring(hasGetGC) ..
-    " Touch=" .. tostring(hasFireTouchInterest) ..
-    " Click=" .. tostring(hasFireClickDetector) ..
-    " Prox=" .. tostring(hasFireProximity) ..
-    " Modules=" .. tostring(hasGetLoadedModules))
-
 -- ============================================================
--- CONFIG SAVE / LOAD
+-- FLUENT UI WINDOW
 -- ============================================================
-local CONFIG_FILE = "KillAuraV10_Config.json"
+local Window = Fluent:CreateWindow({
+    Title = "Kill Aura V10 Ultra",
+    SubTitle = "by PhucVN",
+    TabWidth = 100,
+    Size = UDim2.fromOffset(420, 340),
+    Acrylic = false,
+    Theme = "Dark",
+    MinimizeKey = Enum.KeyCode.RightControl
+})
 
-local function saveConfig()
-    if not hasFileSystem then return false end
-    local data = {
-        Radius = Settings.Radius,
-        Delay = Settings.Delay,
-        TargetPart = Settings.TargetPart,
-        WallCheck = Settings.WallCheck,
-        AuraMode = Settings.AuraMode,
-        TargetPriority = Settings.TargetPriority,
-        MaxTargets = Settings.MaxTargets,
-        TargetNPCs = Settings.TargetNPCs,
-        TargetPlayers = Settings.TargetPlayers,
-        AimbotFOV = Settings.AimbotFOV,
-        AimbotSmooth = Settings.AimbotSmooth,
-        AimbotPart = Settings.AimbotPart,
-        ShowFOVCircle = Settings.ShowFOVCircle,
-        ESPBoxes = Settings.ESPBoxes,
-        ESPNames = Settings.ESPNames,
-        ESPDistance = Settings.ESPDistance,
-        ESPHealth = Settings.ESPHealth,
-        ESPTracers = Settings.ESPTracers,
-        ESPChams = Settings.ESPChams,
-        ESPSkeleton = Settings.ESPSkeleton,
-        ESPTeamCheck = Settings.ESPTeamCheck,
-        ESPMaxDistance = Settings.ESPMaxDistance,
-        AntiAFK = Settings.AntiAFK,
-        SpeedValue = Settings.SpeedValue,
-        FlySpeed = Settings.FlySpeed,
-        Theme = Settings.Theme,
-        DebugMode = Settings.DebugMode,
-    }
-    pcall(function() writefile(CONFIG_FILE, HttpService:JSONEncode(data)) end)
-    return true
-end
+local Tabs = {
+    KillAura = Window:AddTab({ Title = "Aura", Icon = "sword" }),
+    ESP = Window:AddTab({ Title = "ESP", Icon = "eye" }),
+    Aimbot = Window:AddTab({ Title = "Aimbot", Icon = "crosshair" }),
+    Hitbox = Window:AddTab({ Title = "Hitbox", Icon = "box" }),
+    Misc = Window:AddTab({ Title = "Misc", Icon = "settings" }),
+}
 
-local function loadConfig()
-    if not hasFileSystem then return false end
-    local ok, content = pcall(function() return readfile(CONFIG_FILE) end)
-    if not ok or not content then return false end
-    local ok2, data = pcall(function() return HttpService:JSONDecode(content) end)
-    if not ok2 or type(data) ~= "table" then return false end
-    for key, value in pairs(data) do
-        if Settings[key] ~= nil and type(Settings[key]) == type(value) then
-            Settings[key] = value
-        end
-    end
-    return true
-end
-
-loadConfig()
-
--- ============================================================
--- NOTIFICATION SYSTEM
--- ============================================================
-local NotificationContainer
-local function showNotification(text, duration, color)
-    duration = duration or 3
-    color = color or getTheme().Info
-    if not NotificationContainer then return end
-
-    local notif = Instance.new("Frame")
-    notif.Size = UDim2.new(1, 0, 0, 0)
-    notif.BackgroundColor3 = getTheme().Surface
-    notif.BorderSizePixel = 0
-    notif.ClipsDescendants = true
-    notif.Parent = NotificationContainer
-    Instance.new("UICorner", notif).CornerRadius = UDim.new(0, 8)
-
-    local accent = Instance.new("Frame")
-    accent.Size = UDim2.new(0, 3, 1, 0)
-    accent.BackgroundColor3 = color
-    accent.BorderSizePixel = 0
-    accent.Parent = notif
-
-    local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(1, -12, 1, 0)
-    label.Position = UDim2.new(0, 8, 0, 0)
-    label.BackgroundTransparency = 1
-    label.Text = text
-    label.TextColor3 = getTheme().Text
-    label.Font = Enum.Font.Gotham
-    label.TextSize = 11
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.TextWrapped = true
-    label.Parent = notif
-
-    TweenService:Create(notif, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {Size = UDim2.new(1, 0, 0, 32)}):Play()
-    task.delay(duration, function()
-        local tween = TweenService:Create(notif, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {Size = UDim2.new(1, 0, 0, 0)})
-        tween:Play()
-        tween.Completed:Connect(function() notif:Destroy() end)
-    end)
-end
-
--- ============================================================
--- UI HELPERS
--- ============================================================
-local function makeButton(parent, props)
-    local btn = Instance.new("TextButton")
-    btn.Size = props.Size
-    btn.Position = props.Position
-    btn.BackgroundColor3 = props.Color or getTheme().SurfaceLight
-    btn.TextColor3 = props.TextColor or getTheme().Text
-    btn.Text = props.Text or ""
-    btn.Font = Enum.Font.GothamBold
-    btn.TextSize = props.TextSize or 13
-    btn.AutoButtonColor = true
-    btn.Parent = parent
-    if props.ZIndex then btn.ZIndex = props.ZIndex end
-    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, props.Corner or 8)
-    local lastClick = 0
-    btn.MouseButton1Click:Connect(function()
-        local now = tick()
-        if now - lastClick < 0.25 then return end
-        lastClick = now
-        if props.Callback then props.Callback() end
-    end)
-    return btn
-end
-
-local function makeToggle(parent, props)
-    local theme = getTheme()
-    local container = Instance.new("Frame")
-    container.Size = props.Size or UDim2.new(1, -20, 0, 32)
-    container.Position = props.Position
-    container.BackgroundTransparency = 1
-    container.Parent = parent
-    if props.ZIndex then container.ZIndex = props.ZIndex end
-
-    local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(1, -50, 1, 0)
-    label.BackgroundTransparency = 1
-    label.Text = props.Text or ""
-    label.TextColor3 = theme.Text
-    label.Font = Enum.Font.Gotham
-    label.TextSize = 12
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.Parent = container
-    if props.ZIndex then label.ZIndex = props.ZIndex end
-
-    local toggleBg = Instance.new("TextButton")
-    toggleBg.Size = UDim2.new(0, 42, 0, 22)
-    toggleBg.Position = UDim2.new(1, -42, 0.5, -11)
-    toggleBg.BackgroundColor3 = props.Default and theme.Success or Color3.fromRGB(60, 60, 70)
-    toggleBg.Text = ""
-    toggleBg.AutoButtonColor = false
-    toggleBg.Parent = container
-    if props.ZIndex then toggleBg.ZIndex = props.ZIndex end
-    Instance.new("UICorner", toggleBg).CornerRadius = UDim.new(1, 0)
-
-    local knob = Instance.new("Frame")
-    knob.Size = UDim2.new(0, 18, 0, 18)
-    knob.Position = props.Default and UDim2.new(1, -20, 0.5, -9) or UDim2.new(0, 2, 0.5, -9)
-    knob.BackgroundColor3 = Color3.new(1, 1, 1)
-    knob.Parent = toggleBg
-    if props.ZIndex then knob.ZIndex = (props.ZIndex or 0) + 1 end
-    Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
-
-    local state = props.Default or false
-    local lastClick = 0
-    local function updateVisual()
-        local targetPos = state and UDim2.new(1, -20, 0.5, -9) or UDim2.new(0, 2, 0.5, -9)
-        local targetColor = state and theme.Success or Color3.fromRGB(60, 60, 70)
-        TweenService:Create(knob, TweenInfo.new(0.2, Enum.EasingStyle.Quint), {Position = targetPos}):Play()
-        TweenService:Create(toggleBg, TweenInfo.new(0.2, Enum.EasingStyle.Quint), {BackgroundColor3 = targetColor}):Play()
-    end
-    toggleBg.MouseButton1Click:Connect(function()
-        local now = tick()
-        if now - lastClick < 0.25 then return end
-        lastClick = now
-        state = not state
-        updateVisual()
-        if props.OnChanged then props.OnChanged(state) end
-    end)
-    return {
-        SetValue = function(v) state = v; updateVisual() end,
-        GetValue = function() return state end,
-        Container = container,
-    }
-end
-
-local function makeSlider(parent, props)
-    local theme = getTheme()
-    local container = Instance.new("Frame")
-    container.Size = props.Size or UDim2.new(1, -20, 0, 44)
-    container.Position = props.Position
-    container.BackgroundTransparency = 1
-    container.Parent = parent
-    if props.ZIndex then container.ZIndex = props.ZIndex end
-
-    local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(1, 0, 0, 16)
-    label.BackgroundTransparency = 1
-    label.TextColor3 = theme.Text
-    label.Font = Enum.Font.Gotham
-    label.TextSize = 11
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.Parent = container
-    if props.ZIndex then label.ZIndex = props.ZIndex end
-
-    local formatValue = props.Format or function(v) return tostring(math.floor(v)) end
-    label.Text = (props.Text or "") .. ": " .. formatValue(props.Default or props.Min)
-
-    local sliderBg = Instance.new("Frame")
-    sliderBg.Size = UDim2.new(1, 0, 0, 18)
-    sliderBg.Position = UDim2.new(0, 0, 0, 20)
-    sliderBg.BackgroundColor3 = theme.SurfaceLight
-    sliderBg.BorderSizePixel = 0
-    sliderBg.Active = true
-    sliderBg.Parent = container
-    if props.ZIndex then sliderBg.ZIndex = props.ZIndex end
-    Instance.new("UICorner", sliderBg).CornerRadius = UDim.new(0, 6)
-
-    local initialRel = ((props.Default or props.Min) - props.Min) / (props.Max - props.Min)
-    local fill = Instance.new("Frame")
-    fill.Size = UDim2.new(math.clamp(initialRel, 0, 1), 0, 1, 0)
-    fill.BackgroundColor3 = props.FillColor or theme.Accent
-    fill.BorderSizePixel = 0
-    fill.Parent = sliderBg
-    if props.ZIndex then fill.ZIndex = (props.ZIndex or 0) + 1 end
-    Instance.new("UICorner", fill).CornerRadius = UDim.new(0, 6)
-
-    local dragging = false
-    local function updateFromInput(inputPos)
-        local absPos = sliderBg.AbsolutePosition.X
-        local absSize = sliderBg.AbsoluteSize.X
-        if absSize <= 0 then return end
-        local rel = math.clamp((inputPos.X - absPos) / absSize, 0, 1)
-        local value = props.Min + (props.Max - props.Min) * rel
-        if props.Step then value = math.floor(value / props.Step + 0.5) * props.Step end
-        value = math.clamp(value, props.Min, props.Max)
-        fill.Size = UDim2.new(rel, 0, 1, 0)
-        label.Text = (props.Text or "") .. ": " .. formatValue(value)
-        if props.OnChanged then props.OnChanged(value) end
-    end
-    sliderBg.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.Touch or
-           input.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = true
-            updateFromInput(input.Position)
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then dragging = false end
-            end)
-        end
-    end)
-    local conn = UserInputService.InputChanged:Connect(function(input)
-        if dragging and (input.UserInputType == Enum.UserInputType.Touch or
-            input.UserInputType == Enum.UserInputType.MouseMovement) then
-            updateFromInput(input.Position)
-        end
-    end)
-    table.insert(Settings._Connections, conn)
-    return { SetValue = function(v)
-        local rel = math.clamp((v - props.Min) / (props.Max - props.Min), 0, 1)
-        fill.Size = UDim2.new(rel, 0, 1, 0)
-        label.Text = (props.Text or "") .. ": " .. formatValue(v)
-    end, Container = container }
-end
-
-local function makeDraggable(handle, frame)
-    local dragging, dragInput, dragStart, startPos
-    handle.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.Touch or
-           input.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = true; dragStart = input.Position; startPos = frame.Position
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then dragging = false end
-            end)
-        end
-    end)
-    handle.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.Touch or
-           input.UserInputType == Enum.UserInputType.MouseMovement then dragInput = input end
-    end)
-    local conn = UserInputService.InputChanged:Connect(function(input)
-        if input == dragInput and dragging then
-            local delta = input.Position - dragStart
-            frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X,
-                startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-        end
-    end)
-    table.insert(Settings._Connections, conn)
-end
-
-local allDropdowns = {}
-
-local function closeAllDropdowns(except)
-    for _, dd in ipairs(allDropdowns) do
-        if dd ~= except then dd.Close() end
-    end
-end
-
-local _dropdownOverlay = nil
-
-local function getDropdownOverlay()
-    if _dropdownOverlay and _dropdownOverlay.Parent then return _dropdownOverlay end
-    return nil
-end
-
-local function makeDropdown(parent, props)
-    local theme = getTheme()
-    local container = Instance.new("Frame")
-    container.Size = props.Size or UDim2.new(1, -20, 0, 28)
-    container.Position = props.Position
-    container.BackgroundTransparency = 1
-    container.ClipsDescendants = false
-    container.Parent = parent
-    if props.ZIndex then container.ZIndex = props.ZIndex end
-
-    local mainBtn = Instance.new("TextButton")
-    mainBtn.Size = UDim2.new(1, 0, 0, props.ButtonHeight or 26)
-    mainBtn.BackgroundColor3 = props.Color or theme.SurfaceLight
-    mainBtn.TextColor3 = theme.Text
-    mainBtn.Text = "  " .. props.Default
-    mainBtn.Font = Enum.Font.GothamBold
-    mainBtn.TextSize = props.TextSize or 11
-    mainBtn.AutoButtonColor = true
-    mainBtn.TextXAlignment = Enum.TextXAlignment.Left
-    mainBtn.Parent = container
-    if props.ZIndex then mainBtn.ZIndex = props.ZIndex end
-    Instance.new("UICorner", mainBtn).CornerRadius = UDim.new(0, 6)
-
-    local arrow = Instance.new("TextLabel")
-    arrow.Size = UDim2.new(0, 20, 1, 0)
-    arrow.Position = UDim2.new(1, -22, 0, 0)
-    arrow.BackgroundTransparency = 1
-    arrow.Text = "v"
-    arrow.TextColor3 = theme.TextDim
-    arrow.Font = Enum.Font.GothamBold
-    arrow.TextSize = 10
-    arrow.Parent = mainBtn
-    if props.ZIndex then arrow.ZIndex = (props.ZIndex or 0) + 1 end
-
-    local optionHeight = props.OptionHeight or 26
-    local maxVisible = props.MaxVisibleOptions or 6
-    local totalHeight = optionHeight * #props.Options
-    local menuHeight = math.min(totalHeight, optionHeight * maxVisible)
-
-    -- Menu popup lives in ScreenGui overlay so it's never clipped by ScrollingFrame
-    local menuFrame = Instance.new("Frame")
-    menuFrame.Size = UDim2.new(0, 0, 0, 0)
-    menuFrame.BackgroundColor3 = theme.Surface
-    menuFrame.BorderSizePixel = 0
-    menuFrame.Visible = false
-    menuFrame.ClipsDescendants = true
-    menuFrame.Active = true
-    menuFrame.ZIndex = 200
-    Instance.new("UICorner", menuFrame).CornerRadius = UDim.new(0, 6)
-    local menuStroke = Instance.new("UIStroke", menuFrame)
-    menuStroke.Color = theme.Accent; menuStroke.Thickness = 1
-
-    local contentFrame
-    if totalHeight > menuHeight then
-        local scrollFrame = Instance.new("ScrollingFrame")
-        scrollFrame.Size = UDim2.new(1, 0, 1, 0)
-        scrollFrame.BackgroundTransparency = 1
-        scrollFrame.BorderSizePixel = 0
-        scrollFrame.ScrollBarThickness = 4
-        scrollFrame.ScrollBarImageColor3 = theme.AccentLight
-        scrollFrame.CanvasSize = UDim2.new(0, 0, 0, totalHeight)
-        scrollFrame.ScrollingEnabled = true
-        scrollFrame.Parent = menuFrame
-        scrollFrame.ZIndex = 201
-        contentFrame = Instance.new("Frame")
-        contentFrame.Size = UDim2.new(1, 0, 0, totalHeight)
-        contentFrame.BackgroundTransparency = 1
-        contentFrame.Parent = scrollFrame
-        contentFrame.ZIndex = 201
-    else
-        contentFrame = menuFrame
-    end
-
-    local buttons = {}
-    local menuOpen = false
-    local currentValue = props.Default
-    local lastMainClick = 0
-    local dropdown
-
-    for i, optionName in ipairs(props.Options) do
-        local btn = Instance.new("TextButton")
-        btn.Size = UDim2.new(1, 0, 0, optionHeight)
-        btn.Position = UDim2.new(0, 0, 0, (i - 1) * optionHeight)
-        btn.BackgroundColor3 = optionName == props.Default and theme.Accent or theme.Surface
-        btn.TextColor3 = theme.Text
-        btn.Text = "  " .. optionName
-        btn.Font = Enum.Font.Gotham
-        btn.TextSize = (props.TextSize or 11)
-        btn.AutoButtonColor = true
-        btn.TextXAlignment = Enum.TextXAlignment.Left
-        btn.Visible = false
-        btn.Parent = contentFrame
-        btn.ZIndex = 202
-        Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 4)
-
-        local lastBtnClick = 0
-        local function selectOption()
-            local now = tick()
-            if now - lastBtnClick < 0.2 then return end
-            lastBtnClick = now
-            currentValue = optionName
-            mainBtn.Text = "  " .. optionName
-            for _, b in ipairs(buttons) do b.BackgroundColor3 = theme.Surface end
-            btn.BackgroundColor3 = theme.Accent
-            menuOpen = false
-            menuFrame.Visible = false
-            for _, b in ipairs(buttons) do b.Visible = false end
-            arrow.Text = "v"
-            if props.OnChanged then props.OnChanged(optionName) end
-        end
-        btn.MouseButton1Click:Connect(selectOption)
-        btn.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.Touch then
-                task.wait(0.05)
-                selectOption()
-            end
-        end)
-        table.insert(buttons, btn)
-    end
-
-    local function closeMenu()
-        if not menuOpen then return end
-        menuOpen = false
-        menuFrame.Visible = false
-        for _, b in ipairs(buttons) do b.Visible = false end
-        arrow.Text = "v"
-    end
-
-    local function openMenu()
-        closeAllDropdowns(dropdown)
-
-        local overlay = getDropdownOverlay()
-        if overlay then
-            menuFrame.Parent = overlay
-        end
-        local absPos = mainBtn.AbsolutePosition
-        local absSize = mainBtn.AbsoluteSize
-        menuFrame.Position = UDim2.new(0, absPos.X, 0, absPos.Y + absSize.Y + 2)
-        menuFrame.Size = UDim2.new(0, absSize.X, 0, menuHeight)
-
-        menuOpen = true
-        menuFrame.Visible = true
-        for _, b in ipairs(buttons) do b.Visible = true end
-        arrow.Text = "^"
-    end
-
-    local function toggleMenu()
-        local now = tick()
-        if now - lastMainClick < 0.2 then return end
-        lastMainClick = now
-        if menuOpen then closeMenu() else openMenu() end
-    end
-    mainBtn.MouseButton1Click:Connect(toggleMenu)
-    mainBtn.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.Touch then
-            task.wait(0.05)
-            toggleMenu()
-        end
-    end)
-
-    dropdown = {
-        SetValue = function(value)
-            currentValue = value; mainBtn.Text = "  " .. value
-            for _, b in ipairs(buttons) do
-                b.BackgroundColor3 = (b.Text == "  " .. value) and theme.Accent or theme.Surface
-            end
-        end,
-        GetValue = function() return currentValue end,
-        Close = closeMenu,
-    }
-    table.insert(allDropdowns, dropdown)
-    return dropdown
-end
-
--- ============================================================
--- MAIN UI
--- ============================================================
-local theme = getTheme()
-
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "KillAuraV10"
-ScreenGui.ResetOnSpawn = false
-ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
-ScreenGui.IgnoreGuiInset = true
-ScreenGui.DisplayOrder = 10
-ScreenGui.Parent = CoreGui
-
-_dropdownOverlay = Instance.new("Frame")
-_dropdownOverlay.Size = UDim2.new(1, 0, 1, 0)
-_dropdownOverlay.BackgroundTransparency = 1
-_dropdownOverlay.ZIndex = 199
-_dropdownOverlay.Parent = ScreenGui
-_dropdownOverlay.Name = "DropdownOverlay"
-
-NotificationContainer = Instance.new("Frame")
-NotificationContainer.Size = UDim2.new(0, 200, 0, 300)
-NotificationContainer.Position = UDim2.new(1, -210, 0, 40)
-NotificationContainer.BackgroundTransparency = 1
-NotificationContainer.Parent = ScreenGui
-local notifLayout = Instance.new("UIListLayout")
-notifLayout.SortOrder = Enum.SortOrder.LayoutOrder
-notifLayout.Padding = UDim.new(0, 4)
-notifLayout.Parent = NotificationContainer
-
-local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 260, 0, 400)
-MainFrame.Position = UDim2.new(0, 10, 0.15, 0)
-MainFrame.BackgroundColor3 = theme.Background
-MainFrame.BorderSizePixel = 0
-MainFrame.Active = true
-MainFrame.Visible = true
-MainFrame.ZIndex = 5
-MainFrame.Parent = ScreenGui
-Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 12)
-local mainStroke = Instance.new("UIStroke", MainFrame)
-mainStroke.Color = theme.Accent; mainStroke.Thickness = 2
-
-local TitleBar = Instance.new("Frame")
-TitleBar.Size = UDim2.new(1, 0, 0, 34)
-TitleBar.BackgroundColor3 = theme.Surface
-TitleBar.BorderSizePixel = 0
-TitleBar.Active = true
-TitleBar.ZIndex = 6
-TitleBar.Parent = MainFrame
-Instance.new("UICorner", TitleBar).CornerRadius = UDim.new(0, 12)
-local titleFix = Instance.new("Frame")
-titleFix.Size = UDim2.new(1, 0, 0, 14)
-titleFix.Position = UDim2.new(0, 0, 1, -14)
-titleFix.BackgroundColor3 = theme.Surface
-titleFix.BorderSizePixel = 0; titleFix.ZIndex = 6; titleFix.Parent = TitleBar
-
-local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, -60, 1, 0)
-Title.Position = UDim2.new(0, 10, 0, 0)
-Title.BackgroundTransparency = 1
-Title.Text = "V10 Ultra"
-Title.TextColor3 = theme.AccentLight
-Title.Font = Enum.Font.GothamBold
-Title.TextSize = 14
-Title.TextXAlignment = Enum.TextXAlignment.Left
-Title.ZIndex = 7; Title.Parent = TitleBar
-
-local MinimizeBtn = Instance.new("TextButton")
-MinimizeBtn.Size = UDim2.new(0, 24, 0, 24)
-MinimizeBtn.Position = UDim2.new(1, -30, 0, 5)
-MinimizeBtn.BackgroundColor3 = theme.SurfaceLight
-MinimizeBtn.TextColor3 = theme.Text
-MinimizeBtn.Text = "-"
-MinimizeBtn.Font = Enum.Font.GothamBold
-MinimizeBtn.TextSize = 16
-MinimizeBtn.AutoButtonColor = true
-MinimizeBtn.ZIndex = 8; MinimizeBtn.Parent = TitleBar
-Instance.new("UICorner", MinimizeBtn).CornerRadius = UDim.new(0, 6)
-
--- Tab bar
-local TabBar = Instance.new("Frame")
-TabBar.Size = UDim2.new(1, 0, 0, 28)
-TabBar.Position = UDim2.new(0, 0, 0, 34)
-TabBar.BackgroundColor3 = theme.Surface
-TabBar.BorderSizePixel = 0; TabBar.ZIndex = 6; TabBar.Parent = MainFrame
-
-local tabNames = {"KillAura", "ESP", "Aimbot", "Hitbox", "Misc"}
-local tabButtons = {}
-local tabFrames = {}
-
-for i, name in ipairs(tabNames) do
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1 / #tabNames, 0, 1, 0)
-    btn.Position = UDim2.new((i - 1) / #tabNames, 0, 0, 0)
-    btn.BackgroundColor3 = name == Settings.CurrentTab and theme.Accent or theme.Surface
-    btn.TextColor3 = theme.Text
-    btn.Text = name == "KillAura" and "Aura" or (name == "Hitbox" and "HBox" or name)
-    btn.Font = Enum.Font.GothamBold
-    btn.TextSize = 10
-    btn.AutoButtonColor = true
-    btn.ZIndex = 7; btn.Parent = TabBar
-    tabButtons[name] = btn
-end
-
-local ContentArea = Instance.new("ScrollingFrame")
-ContentArea.Size = UDim2.new(1, 0, 1, -62)
-ContentArea.Position = UDim2.new(0, 0, 0, 62)
-ContentArea.BackgroundTransparency = 1
-ContentArea.BorderSizePixel = 0
-ContentArea.ScrollBarThickness = 3
-ContentArea.ScrollBarImageColor3 = theme.Accent
-ContentArea.CanvasSize = UDim2.new(0, 0, 0, 0)
-ContentArea.ZIndex = 6; ContentArea.Parent = MainFrame
-ContentArea.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.Touch or
-       input.UserInputType == Enum.UserInputType.MouseButton1 then
-        closeAllDropdowns()
-    end
-end)
+local Options = Fluent.Options
 
 -- ============================================================
 -- TAB: KILL AURA
 -- ============================================================
-local KillAuraTab = Instance.new("Frame")
-KillAuraTab.Size = UDim2.new(1, 0, 0, 900)
-KillAuraTab.BackgroundTransparency = 1
-KillAuraTab.Visible = true; KillAuraTab.ZIndex = 6; KillAuraTab.Parent = ContentArea
-tabFrames["KillAura"] = KillAuraTab
+Tabs.KillAura:AddParagraph({
+    Title = "Kill Aura",
+    Content = "25 attack modes - Universal"
+})
 
-local auraY = 4
+local KillAuraToggle = Tabs.KillAura:AddToggle("KillAura", {
+    Title = "Kill Aura",
+    Description = "Enable kill aura",
+    Default = false,
+})
+KillAuraToggle:OnChanged(function()
+    Settings.Enabled = Options.KillAura.Value
+end)
 
--- ======= SECTION: KILL AURA CONTROLS =======
-local auraHeader = Instance.new("TextLabel")
-auraHeader.Size = UDim2.new(1, -20, 0, 16)
-auraHeader.Position = UDim2.new(0, 10, 0, auraY)
-auraHeader.BackgroundTransparency = 1; auraHeader.Text = "-- Kill Aura --"
-auraHeader.TextColor3 = theme.AccentLight; auraHeader.Font = Enum.Font.GothamBold
-auraHeader.TextSize = 12; auraHeader.TextXAlignment = Enum.TextXAlignment.Center
-auraHeader.ZIndex = 6; auraHeader.Parent = KillAuraTab
-auraY = auraY + 20
+Tabs.KillAura:AddDropdown("AuraMode", {
+    Title = "Aura Mode (25 modes)",
+    Values = {
+        "Auto", "Normal", "SpyReplay", "Silent", "ClientDamage",
+        "ToolActivate", "TeleportHit", "HitboxExpand", "FlingKill",
+        "RaycastSpam", "MultiHit", "RemoteSpam", "NetworkBrute",
+        "Universal", "TouchDamage", "ClickDetector", "ProximityPrompt",
+        "ModuleExploit", "AnimationAbuse", "VelocityKill", "CFrameSnap",
+        "GodModeKill", "AllToolsSpam", "BruteForceAll", "CustomSystem",
+    },
+    Multi = false,
+    Default = 1,
+})
+Options.AuraMode:OnChanged(function(Value)
+    Settings.AuraMode = Value
+end)
 
-local KillAuraBtn
-KillAuraBtn = makeButton(KillAuraTab, {
-    Size = UDim2.new(0.92, 0, 0, 36),
-    Position = UDim2.new(0.04, 0, 0, auraY),
-    Color = theme.Danger,
-    Text = "KILL AURA: OFF", TextSize = 14, ZIndex = 6,
-    Callback = function()
-        Settings.Enabled = not Settings.Enabled
-        if Settings.Enabled then
-            KillAuraBtn.Text = "KILL AURA: ON"
-            KillAuraBtn.BackgroundColor3 = theme.Success
-            showNotification("Kill Aura ON - " .. Settings.AuraMode, 2, theme.Success)
-        else
-            KillAuraBtn.Text = "KILL AURA: OFF"
-            KillAuraBtn.BackgroundColor3 = theme.Danger
-            showNotification("Kill Aura OFF", 2, theme.Danger)
-        end
+Tabs.KillAura:AddSlider("Radius", {
+    Title = "Radius (studs)",
+    Default = 150,
+    Min = 10,
+    Max = 2000,
+    Rounding = 0,
+})
+Options.Radius:OnChanged(function(Value)
+    Settings.Radius = Value
+end)
+
+Tabs.KillAura:AddSlider("Delay", {
+    Title = "Delay (seconds)",
+    Default = 0.15,
+    Min = 0.01,
+    Max = 1.0,
+    Rounding = 2,
+})
+Options.Delay:OnChanged(function(Value)
+    Settings.Delay = Value
+end)
+
+Tabs.KillAura:AddSlider("MaxTargets", {
+    Title = "Max Targets",
+    Default = 5,
+    Min = 1,
+    Max = 50,
+    Rounding = 0,
+})
+Options.MaxTargets:OnChanged(function(Value)
+    Settings.MaxTargets = Value
+end)
+
+Tabs.KillAura:AddDropdown("TargetPart", {
+    Title = "Target Part",
+    Values = {"Head", "HumanoidRootPart", "UpperTorso", "Torso", "LowerTorso", "LeftHand", "RightHand"},
+    Multi = false,
+    Default = 1,
+})
+Options.TargetPart:OnChanged(function(Value)
+    Settings.TargetPart = Value
+end)
+
+Tabs.KillAura:AddDropdown("TargetPriority", {
+    Title = "Target Priority",
+    Values = {"Closest", "LowestHP", "HighestHP", "Random"},
+    Multi = false,
+    Default = 1,
+})
+Options.TargetPriority:OnChanged(function(Value)
+    Settings.TargetPriority = Value
+end)
+
+Tabs.KillAura:AddToggle("WallCheck", {Title = "Wall Check", Default = false})
+Options.WallCheck:OnChanged(function(Value) Settings.WallCheck = Value end)
+
+Tabs.KillAura:AddToggle("AutoEquip", {Title = "Auto Equip Weapon", Default = true})
+Options.AutoEquip:OnChanged(function(Value) Settings.AutoWeaponEquip = Value end)
+
+Tabs.KillAura:AddToggle("TargetPlayers", {Title = "Target Players", Default = true})
+Options.TargetPlayers:OnChanged(function(Value) Settings.TargetPlayers = Value end)
+
+Tabs.KillAura:AddToggle("TargetNPCs", {Title = "Target NPCs/Mobs", Default = true})
+Options.TargetNPCs:OnChanged(function(Value) Settings.TargetNPCs = Value end)
+
+-- Tele Enemy section
+Tabs.KillAura:AddParagraph({
+    Title = "Tele Enemy",
+    Content = "Teleport enemies to fixed position"
+})
+
+Tabs.KillAura:AddToggle("TeleEnemy", {
+    Title = "Tele Enemy (Fixed Pos)",
+    Description = "Tele all enemies to saved position",
+    Default = false,
+})
+Options.TeleEnemy:OnChanged(function(Value)
+    if Value and not Settings.TeleEnemyPosition then
+        Fluent:Notify({Title = "Warning", Content = "Chua luu toa do! Bam Save Position truoc", Duration = 3})
+        Options.TeleEnemy:SetValue(false)
+        return
     end
-})
-auraY = auraY + 42
+    Settings.TeleEnemyEnabled = Value
+end)
 
-local TeleEnemyBtn
-TeleEnemyBtn = makeToggle(KillAuraTab, {
-    Position = UDim2.new(0, 10, 0, auraY), Text = "Tele Enemy (Fixed Pos)",
-    Default = Settings.TeleEnemyEnabled, ZIndex = 6,
-    OnChanged = function(v)
-        Settings.TeleEnemyEnabled = v
-        if v and not Settings.TeleEnemyPosition then
-            showNotification("Chua luu toa do! Bam Save Position truoc", 3, theme.Warning)
-            Settings.TeleEnemyEnabled = false
-            return
-        end
-        showNotification("Tele Enemy " .. (v and "ON" or "OFF"), 2, v and theme.Success or theme.TextDim)
-    end,
-})
-auraY = auraY + 28
-
-local telePosLabel = Instance.new("TextLabel")
-telePosLabel.Size = UDim2.new(1, -80, 0, 14)
-telePosLabel.Position = UDim2.new(0, 10, 0, auraY)
-telePosLabel.BackgroundTransparency = 1; telePosLabel.Text = "Pos: chua luu"
-telePosLabel.TextColor3 = theme.TextDim; telePosLabel.Font = Enum.Font.Gotham
-telePosLabel.TextSize = 10; telePosLabel.TextXAlignment = Enum.TextXAlignment.Left
-telePosLabel.ZIndex = 6; telePosLabel.Parent = KillAuraTab
-
-makeButton(KillAuraTab, {
-    Size = UDim2.new(0, 65, 0, 22),
-    Position = UDim2.new(1, -75, 0, auraY - 3),
-    Color = theme.Info, Text = "Save Pos", TextSize = 10, ZIndex = 6,
+Tabs.KillAura:AddButton({
+    Title = "Save Position",
+    Description = "Save current position for Tele Enemy",
     Callback = function()
         local char = LocalPlayer.Character
         local myRoot = char and char:FindFirstChild("HumanoidRootPart")
         if myRoot then
             Settings.TeleEnemyPosition = myRoot.Position
             local p = Settings.TeleEnemyPosition
-            telePosLabel.Text = string.format("Pos: %.0f, %.0f, %.0f", p.X, p.Y, p.Z)
-            showNotification("Toa do da luu!", 2, theme.Success)
+            Fluent:Notify({
+                Title = "Saved!",
+                Content = string.format("Pos: %.0f, %.0f, %.0f", p.X, p.Y, p.Z),
+                Duration = 3
+            })
         end
     end
 })
-auraY = auraY + 28
 
--- Toggles FIRST (before dropdowns so dropdown opens over empty space below)
-local wallCheckToggle = makeToggle(KillAuraTab, {
-    Position = UDim2.new(0, 10, 0, auraY), Text = "Wall Check",
-    Default = Settings.WallCheck, ZIndex = 6,
-    OnChanged = function(v) Settings.WallCheck = v end,
-})
-auraY = auraY + 28
-
-local autoEquipToggle = makeToggle(KillAuraTab, {
-    Position = UDim2.new(0, 10, 0, auraY), Text = "Auto Equip Weapon",
-    Default = Settings.AutoWeaponEquip, ZIndex = 6,
-    OnChanged = function(v) Settings.AutoWeaponEquip = v end,
-})
-auraY = auraY + 32
-
-local targetPlayersToggle = makeToggle(KillAuraTab, {
-    Position = UDim2.new(0, 10, 0, auraY), Text = "Target Players",
-    Default = Settings.TargetPlayers, ZIndex = 6,
-    OnChanged = function(v) Settings.TargetPlayers = v end,
-})
-auraY = auraY + 28
-
-local targetNPCsToggle = makeToggle(KillAuraTab, {
-    Position = UDim2.new(0, 10, 0, auraY), Text = "Target NPCs/Mobs",
-    Default = Settings.TargetNPCs, ZIndex = 6,
-    OnChanged = function(v) Settings.TargetNPCs = v end,
-})
-auraY = auraY + 32
-
--- Sliders
-local radiusSlider = makeSlider(KillAuraTab, {
-    Position = UDim2.new(0, 10, 0, auraY),
-    Text = "Radius", Min = 10, Max = 2000, Default = Settings.Radius, Step = 5,
-    Format = function(v) return math.floor(v) .. " studs" end,
-    ZIndex = 6, OnChanged = function(v) Settings.Radius = math.floor(v) end,
-})
-auraY = auraY + 46
-
-local delaySlider = makeSlider(KillAuraTab, {
-    Position = UDim2.new(0, 10, 0, auraY),
-    Text = "Delay", Min = 0.01, Max = 1.0, Default = Settings.Delay, Step = 0.01,
-    FillColor = theme.Info,
-    Format = function(v) return string.format("%.2fs", v) end,
-    ZIndex = 6, OnChanged = function(v) Settings.Delay = math.floor(v * 100) / 100 end,
-})
-auraY = auraY + 46
-
-local maxTargetSlider = makeSlider(KillAuraTab, {
-    Position = UDim2.new(0, 10, 0, auraY),
-    Text = "Max Targets", Min = 1, Max = 50, Default = Settings.MaxTargets, Step = 1,
-    FillColor = theme.Warning,
-    ZIndex = 6, OnChanged = function(v) Settings.MaxTargets = math.floor(v) end,
-})
-auraY = auraY + 50
-
--- Dropdowns at bottom (opens downward over empty space in scroll area)
-local partLabel = Instance.new("TextLabel")
-partLabel.Size = UDim2.new(1, -20, 0, 14)
-partLabel.Position = UDim2.new(0, 10, 0, auraY)
-partLabel.BackgroundTransparency = 1; partLabel.Text = "Target Part:"
-partLabel.TextColor3 = theme.TextDim; partLabel.Font = Enum.Font.Gotham
-partLabel.TextSize = 11; partLabel.TextXAlignment = Enum.TextXAlignment.Left
-partLabel.ZIndex = 6; partLabel.Parent = KillAuraTab
-auraY = auraY + 16
-
-local PartDropdown = makeDropdown(KillAuraTab, {
-    Size = UDim2.new(1, -20, 0, 26),
-    Position = UDim2.new(0, 10, 0, auraY),
-    Default = Settings.TargetPart,
-    Options = {"Head", "HumanoidRootPart", "UpperTorso", "Torso", "LowerTorso", "LeftHand", "RightHand"},
-    ZIndex = 6, OnChanged = function(v) Settings.TargetPart = v end,
-})
-auraY = auraY + 34
-
-local priorityLabel = Instance.new("TextLabel")
-priorityLabel.Size = UDim2.new(1, -20, 0, 14)
-priorityLabel.Position = UDim2.new(0, 10, 0, auraY)
-priorityLabel.BackgroundTransparency = 1; priorityLabel.Text = "Target Priority:"
-priorityLabel.TextColor3 = theme.TextDim; priorityLabel.Font = Enum.Font.Gotham
-priorityLabel.TextSize = 11; priorityLabel.TextXAlignment = Enum.TextXAlignment.Left
-priorityLabel.ZIndex = 6; priorityLabel.Parent = KillAuraTab
-auraY = auraY + 16
-
-local PriorityDropdown = makeDropdown(KillAuraTab, {
-    Size = UDim2.new(1, -20, 0, 26),
-    Position = UDim2.new(0, 10, 0, auraY),
-    Default = Settings.TargetPriority,
-    Options = {"Closest", "LowestHP", "HighestHP", "Random"},
-    ZIndex = 6, OnChanged = function(v) Settings.TargetPriority = v end,
-})
-auraY = auraY + 34
-
-local modeLabel = Instance.new("TextLabel")
-modeLabel.Size = UDim2.new(1, -20, 0, 14)
-modeLabel.Position = UDim2.new(0, 10, 0, auraY)
-modeLabel.BackgroundTransparency = 1; modeLabel.Text = "Aura Mode (25 modes):"
-modeLabel.TextColor3 = theme.Warning; modeLabel.Font = Enum.Font.GothamBold
-modeLabel.TextSize = 11; modeLabel.TextXAlignment = Enum.TextXAlignment.Left
-modeLabel.ZIndex = 6; modeLabel.Parent = KillAuraTab
-auraY = auraY + 16
-
-local AuraModeDropdown = makeDropdown(KillAuraTab, {
-    Size = UDim2.new(1, -20, 0, 26),
-    Position = UDim2.new(0, 10, 0, auraY),
-    Default = Settings.AuraMode,
-    Options = {
-        "Auto",               -- 1. Tu dong chon method tot nhat
-        "Normal",             -- 2. Detected remote
-        "SpyReplay",          -- 3. Replay remote da hoc
-        "Silent",             -- 4. Fire all cached remotes
-        "ClientDamage",       -- 5. Set Health = 0 client
-        "ToolActivate",       -- 6. Equip + Activate tool
-        "TeleportHit",        -- 7. TP den + attack + TP ve
-        "HitboxExpand",       -- 8. Mo rong hitbox target
-        "FlingKill",          -- 9. Physics fling
-        "RaycastSpam",        -- 10. Spam 5 lan
-        "MultiHit",           -- 11. 3 hit lien tiep
-        "RemoteSpam",         -- 12. Spam ALL remotes
-        "NetworkBrute",       -- 13. Thu tat ca signature
-        "Universal",          -- 14. Ket hop tat ca
-        "TouchDamage",        -- 15. firetouchinterest
-        "ClickDetector",      -- 16. fireclickdetector
-        "ProximityPrompt",    -- 17. fireproximityprompt
-        "ModuleExploit",      -- 18. Goi ham tu ModuleScript
-        "AnimationAbuse",     -- 19. Play attack animation
-        "VelocityKill",       -- 20. BodyVelocity crush
-        "CFrameSnap",         -- 21. CFrame overlap kill
-        "GodModeKill",        -- 22. God mode + fling
-        "AllToolsSpam",       -- 23. Equip + activate ALL tools
-        "BruteForceAll",      -- 24. Thu TAT CA methods
-        "CustomSystem",       -- 25. Custom inventory/hotbar games
-    },
-    MaxVisibleOptions = 6,
-    ZIndex = 6,
-    OnChanged = function(v)
-        Settings.AuraMode = v
-        showNotification("Mode: " .. v, 2, theme.Warning)
-    end,
-})
-auraY = auraY + 40
-
--- ======= SECTION: AUTO SCAN =======
-local scanHeader = Instance.new("Frame")
-scanHeader.Size = UDim2.new(1, -20, 0, 2)
-scanHeader.Position = UDim2.new(0, 10, 0, auraY)
-scanHeader.BackgroundColor3 = theme.SurfaceLight
-scanHeader.BorderSizePixel = 0; scanHeader.ZIndex = 6; scanHeader.Parent = KillAuraTab
-auraY = auraY + 6
-
-local scanTitle = Instance.new("TextLabel")
-scanTitle.Size = UDim2.new(1, -20, 0, 16)
-scanTitle.Position = UDim2.new(0, 10, 0, auraY)
-scanTitle.BackgroundTransparency = 1; scanTitle.Text = "-- Auto Scan --"
-scanTitle.TextColor3 = theme.AccentLight; scanTitle.Font = Enum.Font.GothamBold
-scanTitle.TextSize = 12; scanTitle.TextXAlignment = Enum.TextXAlignment.Center
-scanTitle.ZIndex = 6; scanTitle.Parent = KillAuraTab
-auraY = auraY + 20
-
-local StatusLabel = Instance.new("TextLabel")
-StatusLabel.Size = UDim2.new(1, -20, 0, 14)
-StatusLabel.Position = UDim2.new(0, 10, 0, auraY)
-StatusLabel.BackgroundTransparency = 1
-StatusLabel.Text = "Status: Initializing..."
-StatusLabel.TextColor3 = theme.TextDim
-StatusLabel.Font = Enum.Font.Gotham
-StatusLabel.TextSize = 10
-StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
-StatusLabel.ZIndex = 6; StatusLabel.Parent = KillAuraTab
-auraY = auraY + 15
-
-local GameTypeLabel = Instance.new("TextLabel")
-GameTypeLabel.Size = UDim2.new(1, -20, 0, 14)
-GameTypeLabel.Position = UDim2.new(0, 10, 0, auraY)
-GameTypeLabel.BackgroundTransparency = 1
-GameTypeLabel.Text = "Game: Detecting..."
-GameTypeLabel.TextColor3 = theme.Info
-GameTypeLabel.Font = Enum.Font.Gotham
-GameTypeLabel.TextSize = 9
-GameTypeLabel.TextXAlignment = Enum.TextXAlignment.Left
-GameTypeLabel.ZIndex = 6; GameTypeLabel.Parent = KillAuraTab
-auraY = auraY + 15
-
-local SpyStatusLabel = Instance.new("TextLabel")
-SpyStatusLabel.Size = UDim2.new(1, -20, 0, 14)
-SpyStatusLabel.Position = UDim2.new(0, 10, 0, auraY)
-SpyStatusLabel.BackgroundTransparency = 1
-SpyStatusLabel.Text = "Spy: 0 | Scan: 0"
-SpyStatusLabel.TextColor3 = theme.Warning
-SpyStatusLabel.Font = Enum.Font.Gotham
-SpyStatusLabel.TextSize = 9
-SpyStatusLabel.TextXAlignment = Enum.TextXAlignment.Left
-SpyStatusLabel.ZIndex = 6; SpyStatusLabel.Parent = KillAuraTab
-auraY = auraY + 18
-
-local RescanBtn = makeButton(KillAuraTab, {
-    Size = UDim2.new(0.92, 0, 0, 32),
-    Position = UDim2.new(0.04, 0, 0, auraY),
-    Color = theme.SurfaceLight,
-    Text = "Rescan Remotes", TextSize = 11, ZIndex = 6,
+Tabs.KillAura:AddButton({
+    Title = "Rescan Remotes",
+    Description = "Re-scan all game remotes",
     Callback = function()
-        task.spawn(function() scanRemotes(); showNotification("Scan complete", 2, theme.Info) end)
+        task.spawn(function()
+            scanRemotes()
+            Fluent:Notify({Title = "Scan", Content = "Scan complete!", Duration = 2})
+        end)
     end
 })
-auraY = auraY + 38
-
-KillAuraTab.Size = UDim2.new(1, 0, 0, auraY + 10)
 
 -- ============================================================
 -- TAB: ESP
 -- ============================================================
-local ESPTab = Instance.new("Frame")
-ESPTab.Size = UDim2.new(1, 0, 0, 350)
-ESPTab.BackgroundTransparency = 1; ESPTab.Visible = false
-ESPTab.ZIndex = 6; ESPTab.Parent = ContentArea
-tabFrames["ESP"] = ESPTab
+Tabs.ESP:AddToggle("ESP", {Title = "ESP", Description = "Enable ESP overlay", Default = false})
+Options.ESP:OnChanged(function(Value) Settings.ESPEnabled = Value end)
 
-local espY = 6
+Tabs.ESP:AddToggle("ESPBoxes", {Title = "Boxes", Default = true})
+Options.ESPBoxes:OnChanged(function(Value) Settings.ESPBoxes = Value end)
 
-local ESPBtn
-ESPBtn = makeButton(ESPTab, {
-    Size = UDim2.new(0.92, 0, 0, 36),
-    Position = UDim2.new(0.04, 0, 0, espY),
-    Color = theme.SurfaceLight, Text = "ESP: OFF", TextSize = 14, ZIndex = 6,
-    Callback = function()
-        Settings.ESPEnabled = not Settings.ESPEnabled
-        ESPBtn.Text = Settings.ESPEnabled and "ESP: ON" or "ESP: OFF"
-        ESPBtn.BackgroundColor3 = Settings.ESPEnabled and theme.Info or theme.SurfaceLight
-        showNotification("ESP " .. (Settings.ESPEnabled and "ON" or "OFF"), 2, Settings.ESPEnabled and theme.Info or theme.TextDim)
-    end
+Tabs.ESP:AddToggle("ESPNames", {Title = "Names", Default = true})
+Options.ESPNames:OnChanged(function(Value) Settings.ESPNames = Value end)
+
+Tabs.ESP:AddToggle("ESPDistance", {Title = "Distance", Default = true})
+Options.ESPDistance:OnChanged(function(Value) Settings.ESPDistance = Value end)
+
+Tabs.ESP:AddToggle("ESPHealth", {Title = "Health Bar", Default = true})
+Options.ESPHealth:OnChanged(function(Value) Settings.ESPHealth = Value end)
+
+Tabs.ESP:AddToggle("ESPTracers", {Title = "Tracers", Default = true})
+Options.ESPTracers:OnChanged(function(Value) Settings.ESPTracers = Value end)
+
+Tabs.ESP:AddToggle("ESPChams", {Title = "Chams", Default = true})
+Options.ESPChams:OnChanged(function(Value) Settings.ESPChams = Value end)
+
+Tabs.ESP:AddToggle("ESPSkeleton", {Title = "Skeleton", Default = false})
+Options.ESPSkeleton:OnChanged(function(Value) Settings.ESPSkeleton = Value end)
+
+Tabs.ESP:AddToggle("ESPTeamCheck", {Title = "Team Check", Default = true})
+Options.ESPTeamCheck:OnChanged(function(Value) Settings.ESPTeamCheck = Value end)
+
+Tabs.ESP:AddSlider("ESPMaxDistance", {
+    Title = "Max Distance",
+    Default = 2000,
+    Min = 100,
+    Max = 5000,
+    Rounding = 0,
 })
-espY = espY + 44
-
-local espToggles = {
-    {text = "Boxes", key = "ESPBoxes"}, {text = "Names", key = "ESPNames"},
-    {text = "Distance", key = "ESPDistance"}, {text = "Health Bar", key = "ESPHealth"},
-    {text = "Tracers", key = "ESPTracers"}, {text = "Chams", key = "ESPChams"},
-    {text = "Skeleton", key = "ESPSkeleton"}, {text = "Team Check", key = "ESPTeamCheck"},
-}
-for _, toggle in ipairs(espToggles) do
-    makeToggle(ESPTab, {
-        Position = UDim2.new(0, 10, 0, espY), Text = toggle.text,
-        Default = Settings[toggle.key], ZIndex = 6,
-        OnChanged = function(v) Settings[toggle.key] = v end,
-    })
-    espY = espY + 32
-end
-
-makeSlider(ESPTab, {
-    Position = UDim2.new(0, 10, 0, espY), Text = "Max Distance",
-    Min = 100, Max = 5000, Default = Settings.ESPMaxDistance, Step = 50,
-    FillColor = theme.Info, ZIndex = 6,
-    OnChanged = function(v) Settings.ESPMaxDistance = math.floor(v) end,
-})
-espY = espY + 50
-ESPTab.Size = UDim2.new(1, 0, 0, espY + 10)
+Options.ESPMaxDistance:OnChanged(function(Value) Settings.ESPMaxDistance = Value end)
 
 -- ============================================================
 -- TAB: AIMBOT
 -- ============================================================
-local AimbotTab = Instance.new("Frame")
-AimbotTab.Size = UDim2.new(1, 0, 0, 280)
-AimbotTab.BackgroundTransparency = 1; AimbotTab.Visible = false
-AimbotTab.ZIndex = 6; AimbotTab.Parent = ContentArea
-tabFrames["Aimbot"] = AimbotTab
+Tabs.Aimbot:AddToggle("Aimbot", {Title = "Aimbot", Description = "Auto aim at enemies", Default = false})
+Options.Aimbot:OnChanged(function(Value) Settings.AimbotEnabled = Value end)
 
-local aimY = 6
-
-local AimbotBtn
-AimbotBtn = makeButton(AimbotTab, {
-    Size = UDim2.new(0.92, 0, 0, 36),
-    Position = UDim2.new(0.04, 0, 0, aimY),
-    Color = theme.SurfaceLight, Text = "Aimbot: OFF", TextSize = 14, ZIndex = 6,
-    Callback = function()
-        Settings.AimbotEnabled = not Settings.AimbotEnabled
-        AimbotBtn.Text = Settings.AimbotEnabled and "Aimbot: ON" or "Aimbot: OFF"
-        AimbotBtn.BackgroundColor3 = Settings.AimbotEnabled and theme.Warning or theme.SurfaceLight
-        showNotification("Aimbot " .. (Settings.AimbotEnabled and "ON" or "OFF"), 2, Settings.AimbotEnabled and theme.Warning or theme.TextDim)
-    end
+Tabs.Aimbot:AddSlider("AimbotFOV", {
+    Title = "FOV Radius",
+    Default = 120,
+    Min = 20,
+    Max = 500,
+    Rounding = 0,
 })
-aimY = aimY + 44
+Options.AimbotFOV:OnChanged(function(Value) Settings.AimbotFOV = Value end)
 
-makeSlider(AimbotTab, {
-    Position = UDim2.new(0, 10, 0, aimY), Text = "FOV Radius",
-    Min = 20, Max = 500, Default = Settings.AimbotFOV, Step = 5,
-    FillColor = theme.Warning, ZIndex = 6,
-    OnChanged = function(v) Settings.AimbotFOV = math.floor(v) end,
+Tabs.Aimbot:AddSlider("AimbotSmooth", {
+    Title = "Smoothing (%)",
+    Default = 30,
+    Min = 5,
+    Max = 100,
+    Rounding = 0,
 })
-aimY = aimY + 50
+Options.AimbotSmooth:OnChanged(function(Value) Settings.AimbotSmooth = Value / 100 end)
 
-makeSlider(AimbotTab, {
-    Position = UDim2.new(0, 10, 0, aimY), Text = "Smoothing",
-    Min = 0.05, Max = 1.0, Default = Settings.AimbotSmooth, Step = 0.05,
-    FillColor = theme.AccentLight,
-    Format = function(v) return string.format("%.0f%%", v * 100) end,
-    ZIndex = 6, OnChanged = function(v) Settings.AimbotSmooth = math.floor(v * 100) / 100 end,
+Tabs.Aimbot:AddDropdown("AimbotPart", {
+    Title = "Aim Part",
+    Values = {"Head", "HumanoidRootPart", "UpperTorso", "Torso"},
+    Multi = false,
+    Default = 1,
 })
-aimY = aimY + 50
+Options.AimbotPart:OnChanged(function(Value) Settings.AimbotPart = Value end)
 
-local aimPartLabel = Instance.new("TextLabel")
-aimPartLabel.Size = UDim2.new(1, -20, 0, 14)
-aimPartLabel.Position = UDim2.new(0, 10, 0, aimY)
-aimPartLabel.BackgroundTransparency = 1; aimPartLabel.Text = "Aim Part:"
-aimPartLabel.TextColor3 = theme.TextDim; aimPartLabel.Font = Enum.Font.Gotham
-aimPartLabel.TextSize = 11; aimPartLabel.TextXAlignment = Enum.TextXAlignment.Left
-aimPartLabel.ZIndex = 6; aimPartLabel.Parent = AimbotTab
-aimY = aimY + 16
+Tabs.Aimbot:AddToggle("ShowFOV", {Title = "Show FOV Circle", Default = true})
+Options.ShowFOV:OnChanged(function(Value) Settings.ShowFOVCircle = Value end)
 
-makeDropdown(AimbotTab, {
-    Size = UDim2.new(1, -20, 0, 26), Position = UDim2.new(0, 10, 0, aimY),
-    Default = Settings.AimbotPart,
-    Options = {"Head", "HumanoidRootPart", "UpperTorso", "Torso"},
-    ZIndex = 6, OnChanged = function(v) Settings.AimbotPart = v end,
-})
-aimY = aimY + 34
-
-makeToggle(AimbotTab, {
-    Position = UDim2.new(0, 10, 0, aimY), Text = "Show FOV Circle",
-    Default = Settings.ShowFOVCircle, ZIndex = 6,
-    OnChanged = function(v) Settings.ShowFOVCircle = v end,
-})
-aimY = aimY + 34
-
-makeToggle(AimbotTab, {
-    Position = UDim2.new(0, 10, 0, aimY), Text = "Team Check",
-    Default = Settings.AimbotTeamCheck, ZIndex = 6,
-    OnChanged = function(v) Settings.AimbotTeamCheck = v end,
-})
-aimY = aimY + 34
-AimbotTab.Size = UDim2.new(1, 0, 0, aimY + 10)
+Tabs.Aimbot:AddToggle("AimbotTeamCheck", {Title = "Team Check", Default = true})
+Options.AimbotTeamCheck:OnChanged(function(Value) Settings.AimbotTeamCheck = Value end)
 
 -- ============================================================
 -- TAB: HITBOX
 -- ============================================================
-local HitboxTab = Instance.new("Frame")
-HitboxTab.Size = UDim2.new(1, 0, 0, 500)
-HitboxTab.BackgroundTransparency = 1; HitboxTab.Visible = false
-HitboxTab.ZIndex = 6; HitboxTab.Parent = ContentArea
-tabFrames["Hitbox"] = HitboxTab
-
-local hbY = 6
-
-local hbTitle = Instance.new("TextLabel")
-hbTitle.Size = UDim2.new(1, -20, 0, 16)
-hbTitle.Position = UDim2.new(0, 10, 0, hbY)
-hbTitle.BackgroundTransparency = 1; hbTitle.Text = "Hitbox Expander - All Players"
-hbTitle.TextColor3 = theme.Warning; hbTitle.Font = Enum.Font.GothamBold
-hbTitle.TextSize = 12; hbTitle.TextXAlignment = Enum.TextXAlignment.Left
-hbTitle.ZIndex = 6; hbTitle.Parent = HitboxTab
-hbY = hbY + 20
-
-local HitboxBtn = makeButton(HitboxTab, {
-    Size = UDim2.new(1, -20, 0, 36),
-    Position = UDim2.new(0, 10, 0, hbY),
-    Color = theme.Danger, Text = "HITBOX: OFF", TextSize = 14, ZIndex = 6,
-    Callback = function()
-        Settings.HitboxEnabled = not Settings.HitboxEnabled
-        HitboxBtn.Text = Settings.HitboxEnabled and "HITBOX: ON" or "HITBOX: OFF"
-        HitboxBtn.BackgroundColor3 = Settings.HitboxEnabled and theme.Success or theme.Danger
-        showNotification("Hitbox " .. (Settings.HitboxEnabled and "ON" or "OFF"), 2, Settings.HitboxEnabled and theme.Success or theme.Danger)
-    end
+Tabs.Hitbox:AddParagraph({
+    Title = "Hitbox Expander",
+    Content = "Expand all players' hitbox (except you)"
 })
-hbY = hbY + 44
 
-local hbInfoLabel = Instance.new("TextLabel")
-hbInfoLabel.Size = UDim2.new(1, -20, 0, 28)
-hbInfoLabel.Position = UDim2.new(0, 10, 0, hbY)
-hbInfoLabel.BackgroundTransparency = 1
-hbInfoLabel.Text = "Expand all players' hitbox (except you)\nWalk through + shoot from inside hitbox"
-hbInfoLabel.TextColor3 = theme.TextDim; hbInfoLabel.Font = Enum.Font.Gotham
-hbInfoLabel.TextSize = 9; hbInfoLabel.TextXAlignment = Enum.TextXAlignment.Left
-hbInfoLabel.TextWrapped = true; hbInfoLabel.ZIndex = 6; hbInfoLabel.Parent = HitboxTab
-hbY = hbY + 34
+Tabs.Hitbox:AddToggle("Hitbox", {Title = "Hitbox Expander", Description = "Expand enemy hitbox", Default = false})
+Options.Hitbox:OnChanged(function(Value) Settings.HitboxEnabled = Value end)
 
-local hbXLabel = Instance.new("TextLabel")
-hbXLabel.Size = UDim2.new(1, -20, 0, 14)
-hbXLabel.Position = UDim2.new(0, 10, 0, hbY)
-hbXLabel.BackgroundTransparency = 1; hbXLabel.Text = "Hitbox X Size:"
-hbXLabel.TextColor3 = theme.TextDim; hbXLabel.Font = Enum.Font.Gotham
-hbXLabel.TextSize = 11; hbXLabel.TextXAlignment = Enum.TextXAlignment.Left
-hbXLabel.ZIndex = 6; hbXLabel.Parent = HitboxTab
-hbY = hbY + 14
+Tabs.Hitbox:AddSlider("HitboxX", {Title = "X Size", Default = 10, Min = 0, Max = 3000, Rounding = 0})
+Options.HitboxX:OnChanged(function(Value) Settings.HitboxX = Value end)
 
-local hbXSlider = makeSlider(HitboxTab, {
-    Position = UDim2.new(0, 10, 0, hbY), Text = "X",
-    Min = 0, Max = 3000, Default = Settings.HitboxX, Step = 10,
-    FillColor = Color3.fromRGB(255, 80, 80), ZIndex = 6,
-    OnChanged = function(v) Settings.HitboxX = math.floor(v) end,
+Tabs.Hitbox:AddSlider("HitboxY", {Title = "Y Size", Default = 10, Min = 0, Max = 3000, Rounding = 0})
+Options.HitboxY:OnChanged(function(Value) Settings.HitboxY = Value end)
+
+Tabs.Hitbox:AddSlider("HitboxZ", {Title = "Z Size", Default = 10, Min = 0, Max = 3000, Rounding = 0})
+Options.HitboxZ:OnChanged(function(Value) Settings.HitboxZ = Value end)
+
+Tabs.Hitbox:AddSlider("HitboxTransp", {Title = "Transparency", Default = 70, Min = 0, Max = 100, Rounding = 0})
+Options.HitboxTransp:OnChanged(function(Value) Settings.HitboxTransparency = Value / 100 end)
+
+Tabs.Hitbox:AddToggle("HitboxNoCollide", {Title = "Walk Through (NoCollide)", Default = true})
+Options.HitboxNoCollide:OnChanged(function(Value) Settings.HitboxCanCollide = not Value end)
+
+Tabs.Hitbox:AddToggle("HitboxVisible", {Title = "Show Hitbox", Default = true})
+Options.HitboxVisible:OnChanged(function(Value) Settings.HitboxVisible = Value end)
+
+Tabs.Hitbox:AddDropdown("HitboxPreset", {
+    Title = "Quick Preset",
+    Values = {"Small (20)", "Medium (50)", "Large (200)", "MEGA (1000)", "MAX (3000)"},
+    Multi = false,
+    Default = 1,
 })
-hbY = hbY + 50
-
-local hbYLabel = Instance.new("TextLabel")
-hbYLabel.Size = UDim2.new(1, -20, 0, 14)
-hbYLabel.Position = UDim2.new(0, 10, 0, hbY)
-hbYLabel.BackgroundTransparency = 1; hbYLabel.Text = "Hitbox Y Size:"
-hbYLabel.TextColor3 = theme.TextDim; hbYLabel.Font = Enum.Font.Gotham
-hbYLabel.TextSize = 11; hbYLabel.TextXAlignment = Enum.TextXAlignment.Left
-hbYLabel.ZIndex = 6; hbYLabel.Parent = HitboxTab
-hbY = hbY + 14
-
-local hbYSlider = makeSlider(HitboxTab, {
-    Position = UDim2.new(0, 10, 0, hbY), Text = "Y",
-    Min = 0, Max = 3000, Default = Settings.HitboxY, Step = 10,
-    FillColor = Color3.fromRGB(80, 255, 80), ZIndex = 6,
-    OnChanged = function(v) Settings.HitboxY = math.floor(v) end,
-})
-hbY = hbY + 50
-
-local hbZLabel = Instance.new("TextLabel")
-hbZLabel.Size = UDim2.new(1, -20, 0, 14)
-hbZLabel.Position = UDim2.new(0, 10, 0, hbY)
-hbZLabel.BackgroundTransparency = 1; hbZLabel.Text = "Hitbox Z Size:"
-hbZLabel.TextColor3 = theme.TextDim; hbZLabel.Font = Enum.Font.Gotham
-hbZLabel.TextSize = 11; hbZLabel.TextXAlignment = Enum.TextXAlignment.Left
-hbZLabel.ZIndex = 6; hbZLabel.Parent = HitboxTab
-hbY = hbY + 14
-
-local hbZSlider = makeSlider(HitboxTab, {
-    Position = UDim2.new(0, 10, 0, hbY), Text = "Z",
-    Min = 0, Max = 3000, Default = Settings.HitboxZ, Step = 10,
-    FillColor = Color3.fromRGB(80, 80, 255), ZIndex = 6,
-    OnChanged = function(v) Settings.HitboxZ = math.floor(v) end,
-})
-hbY = hbY + 50
-
-makeSlider(HitboxTab, {
-    Position = UDim2.new(0, 10, 0, hbY), Text = "Transparency",
-    Min = 0, Max = 1, Default = Settings.HitboxTransparency, Step = 0.05,
-    FillColor = theme.AccentLight, ZIndex = 6,
-    OnChanged = function(v) Settings.HitboxTransparency = v end,
-})
-hbY = hbY + 50
-
-makeToggle(HitboxTab, {
-    Position = UDim2.new(0, 10, 0, hbY), Text = "Walk Through (NoCollide)",
-    Default = not Settings.HitboxCanCollide, ZIndex = 6,
-    OnChanged = function(v) Settings.HitboxCanCollide = not v end,
-})
-hbY = hbY + 32
-
-makeToggle(HitboxTab, {
-    Position = UDim2.new(0, 10, 0, hbY), Text = "Show Hitbox (Visible)",
-    Default = Settings.HitboxVisible, ZIndex = 6,
-    OnChanged = function(v) Settings.HitboxVisible = v end,
-})
-hbY = hbY + 32
-
-local hbPresetLabel = Instance.new("TextLabel")
-hbPresetLabel.Size = UDim2.new(1, -20, 0, 14)
-hbPresetLabel.Position = UDim2.new(0, 10, 0, hbY)
-hbPresetLabel.BackgroundTransparency = 1; hbPresetLabel.Text = "Quick Presets:"
-hbPresetLabel.TextColor3 = theme.TextDim; hbPresetLabel.Font = Enum.Font.GothamBold
-hbPresetLabel.TextSize = 11; hbPresetLabel.TextXAlignment = Enum.TextXAlignment.Left
-hbPresetLabel.ZIndex = 6; hbPresetLabel.Parent = HitboxTab
-hbY = hbY + 18
-
-local presets = {
-    {name = "Small (20)", x = 20, y = 20, z = 20},
-    {name = "Medium (50)", x = 50, y = 50, z = 50},
-    {name = "Large (200)", x = 200, y = 200, z = 200},
-    {name = "MEGA (1000)", x = 1000, y = 1000, z = 1000},
-    {name = "MAX (3000)", x = 3000, y = 3000, z = 3000},
-}
-for pi, preset in ipairs(presets) do
-    local col = (pi - 1) % 3
-    local row = math.floor((pi - 1) / 3)
-    makeButton(HitboxTab, {
-        Size = UDim2.new(0.3, -4, 0, 28),
-        Position = UDim2.new(col * 0.33 + 0.02, 0, 0, hbY + row * 34),
-        Color = theme.SurfaceLight, Text = preset.name, TextSize = 9, ZIndex = 6,
-        Callback = function()
-            Settings.HitboxX = preset.x; Settings.HitboxY = preset.y; Settings.HitboxZ = preset.z
-            if hbXSlider and hbXSlider.SetValue then hbXSlider.SetValue(preset.x) end
-            if hbYSlider and hbYSlider.SetValue then hbYSlider.SetValue(preset.y) end
-            if hbZSlider and hbZSlider.SetValue then hbZSlider.SetValue(preset.z) end
-            showNotification("Hitbox: " .. preset.name, 2, theme.Info)
-        end
-    })
-end
-hbY = hbY + 72
-
-local hbStatusLabel = Instance.new("TextLabel")
-hbStatusLabel.Size = UDim2.new(1, -20, 0, 14)
-hbStatusLabel.Position = UDim2.new(0, 10, 0, hbY)
-hbStatusLabel.BackgroundTransparency = 1
-hbStatusLabel.Text = "Hitbox: OFF"
-hbStatusLabel.TextColor3 = theme.TextDim; hbStatusLabel.Font = Enum.Font.Gotham
-hbStatusLabel.TextSize = 10; hbStatusLabel.TextXAlignment = Enum.TextXAlignment.Left
-hbStatusLabel.ZIndex = 6; hbStatusLabel.Parent = HitboxTab
-hbY = hbY + 20
-
-HitboxTab.Size = UDim2.new(1, 0, 0, hbY + 10)
+Options.HitboxPreset:OnChanged(function(Value)
+    local presets = {
+        ["Small (20)"] = 20, ["Medium (50)"] = 50, ["Large (200)"] = 200,
+        ["MEGA (1000)"] = 1000, ["MAX (3000)"] = 3000,
+    }
+    local size = presets[Value] or 10
+    Settings.HitboxX = size; Settings.HitboxY = size; Settings.HitboxZ = size
+    Options.HitboxX:SetValue(size)
+    Options.HitboxY:SetValue(size)
+    Options.HitboxZ:SetValue(size)
+end)
 
 -- ============================================================
 -- TAB: MISC
 -- ============================================================
-local MiscTab = Instance.new("Frame")
-MiscTab.Size = UDim2.new(1, 0, 0, 450)
-MiscTab.BackgroundTransparency = 1; MiscTab.Visible = false
-MiscTab.ZIndex = 6; MiscTab.Parent = ContentArea
-tabFrames["Misc"] = MiscTab
+Tabs.Misc:AddToggle("AntiAFK", {Title = "Anti-AFK", Default = true})
+Options.AntiAFK:OnChanged(function(Value) Settings.AntiAFK = Value end)
 
-local miscY = 6
+Tabs.Misc:AddToggle("InfiniteJump", {Title = "Infinite Jump", Default = false})
+Options.InfiniteJump:OnChanged(function(Value) Settings.InfiniteJump = Value end)
 
-local miscToggles = {
-    {text = "Anti-AFK", key = "AntiAFK"},
-    {text = "Infinite Jump", key = "InfiniteJump"},
-    {text = "Speed Hack", key = "SpeedEnabled"},
-}
-for _, t in ipairs(miscToggles) do
-    makeToggle(MiscTab, {
-        Position = UDim2.new(0, 10, 0, miscY), Text = t.text,
-        Default = Settings[t.key], ZIndex = 6,
-        OnChanged = function(v)
-            Settings[t.key] = v
-            showNotification(t.text .. " " .. (v and "ON" or "OFF"), 2, v and theme.Success or theme.TextDim)
-        end,
-    })
-    miscY = miscY + 32
-end
+Tabs.Misc:AddToggle("SpeedHack", {Title = "Speed Hack", Default = false})
+Options.SpeedHack:OnChanged(function(Value) Settings.SpeedEnabled = Value end)
 
-makeSlider(MiscTab, {
-    Position = UDim2.new(0, 10, 0, miscY), Text = "Walk Speed",
-    Min = 16, Max = 200, Default = Settings.SpeedValue, Step = 2,
-    ZIndex = 6, OnChanged = function(v) Settings.SpeedValue = math.floor(v) end,
+Tabs.Misc:AddSlider("WalkSpeed", {Title = "Walk Speed", Default = 32, Min = 16, Max = 200, Rounding = 0})
+Options.WalkSpeed:OnChanged(function(Value) Settings.SpeedValue = Value end)
+
+Tabs.Misc:AddToggle("Fly", {Title = "Fly", Default = false})
+Options.Fly:OnChanged(function(Value) Settings.FlyEnabled = Value end)
+
+Tabs.Misc:AddSlider("FlySpeed", {Title = "Fly Speed", Default = 50, Min = 10, Max = 200, Rounding = 0})
+Options.FlySpeed:OnChanged(function(Value) Settings.FlySpeed = Value end)
+
+Tabs.Misc:AddParagraph({
+    Title = "Ngu Kiem Phi Hanh",
+    Content = "Sword Flying - Wuxia style"
 })
-miscY = miscY + 50
 
-makeToggle(MiscTab, {
-    Position = UDim2.new(0, 10, 0, miscY), Text = "Fly",
-    Default = Settings.FlyEnabled, ZIndex = 6,
-    OnChanged = function(v) Settings.FlyEnabled = v; showNotification("Fly " .. (v and "ON" or "OFF"), 2, v and theme.Success or theme.TextDim) end,
-})
-miscY = miscY + 32
-
-makeSlider(MiscTab, {
-    Position = UDim2.new(0, 10, 0, miscY), Text = "Fly Speed",
-    Min = 10, Max = 200, Default = Settings.FlySpeed, Step = 5,
-    FillColor = theme.Info, ZIndex = 6,
-    OnChanged = function(v) Settings.FlySpeed = math.floor(v) end,
-})
-miscY = miscY + 50
-
--- Sword Flying separator
-local swordSep = Instance.new("Frame")
-swordSep.Size = UDim2.new(1, -20, 0, 1); swordSep.Position = UDim2.new(0, 10, 0, miscY)
-swordSep.BackgroundColor3 = theme.SurfaceLight; swordSep.BorderSizePixel = 0; swordSep.ZIndex = 6; swordSep.Parent = MiscTab
-miscY = miscY + 8
-
-local swordLabel = Instance.new("TextLabel")
-swordLabel.Size = UDim2.new(1, -20, 0, 16); swordLabel.Position = UDim2.new(0, 10, 0, miscY)
-swordLabel.BackgroundTransparency = 1; swordLabel.Text = "Ngu Kiem Phi Hanh (Sword Fly)"
-swordLabel.TextColor3 = theme.Accent; swordLabel.Font = Enum.Font.GothamBold
-swordLabel.TextSize = 12; swordLabel.TextXAlignment = Enum.TextXAlignment.Left
-swordLabel.ZIndex = 6; swordLabel.Parent = MiscTab
-miscY = miscY + 20
-
-makeToggle(MiscTab, {
-    Position = UDim2.new(0, 10, 0, miscY), Text = "Sword Fly",
-    Default = Settings.SwordFlyEnabled, ZIndex = 6,
-    OnChanged = function(v)
-        Settings.SwordFlyEnabled = v
-        if v then Settings.FlyEnabled = false end
-        showNotification("Ngu Kiem Phi Hanh " .. (v and "ON" or "OFF"), 2, v and theme.Success or theme.TextDim)
-    end,
-})
-miscY = miscY + 32
-
-makeSlider(MiscTab, {
-    Position = UDim2.new(0, 10, 0, miscY), Text = "Sword Speed",
-    Min = 20, Max = 300, Default = Settings.SwordFlySpeed, Step = 5,
-    FillColor = theme.Accent, ZIndex = 6,
-    OnChanged = function(v) Settings.SwordFlySpeed = math.floor(v) end,
-})
-miscY = miscY + 50
-
--- End sword fly section separator
-local swordSep2 = Instance.new("Frame")
-swordSep2.Size = UDim2.new(1, -20, 0, 1); swordSep2.Position = UDim2.new(0, 10, 0, miscY)
-swordSep2.BackgroundColor3 = theme.SurfaceLight; swordSep2.BorderSizePixel = 0; swordSep2.ZIndex = 6; swordSep2.Parent = MiscTab
-miscY = miscY + 8
-
-makeToggle(MiscTab, {
-    Position = UDim2.new(0, 10, 0, miscY), Text = "Anti-Void",
-    Default = Settings.AntiVoid, ZIndex = 6,
-    OnChanged = function(v) Settings.AntiVoid = v end,
-})
-miscY = miscY + 32
-
-makeToggle(MiscTab, {
-    Position = UDim2.new(0, 10, 0, miscY), Text = "NoClip",
-    Default = Settings.NoClip, ZIndex = 6,
-    OnChanged = function(v) Settings.NoClip = v; showNotification("NoClip " .. (v and "ON" or "OFF"), 2, v and theme.Success or theme.TextDim) end,
-})
-miscY = miscY + 32
-
-makeToggle(MiscTab, {
-    Position = UDim2.new(0, 10, 0, miscY), Text = "Debug Mode",
-    Default = Settings.DebugMode, ZIndex = 6,
-    OnChanged = function(v) Settings.DebugMode = v end,
-})
-miscY = miscY + 36
-
-local themeLabel = Instance.new("TextLabel")
-themeLabel.Size = UDim2.new(1, -20, 0, 14)
-themeLabel.Position = UDim2.new(0, 10, 0, miscY)
-themeLabel.BackgroundTransparency = 1; themeLabel.Text = "Theme:"
-themeLabel.TextColor3 = theme.TextDim; themeLabel.Font = Enum.Font.Gotham
-themeLabel.TextSize = 11; themeLabel.TextXAlignment = Enum.TextXAlignment.Left
-themeLabel.ZIndex = 6; themeLabel.Parent = MiscTab
-miscY = miscY + 16
-
-makeDropdown(MiscTab, {
-    Size = UDim2.new(1, -20, 0, 26), Position = UDim2.new(0, 10, 0, miscY),
-    Default = Settings.Theme, Options = {"Purple", "Red", "Blue"},
-    ZIndex = 6, OnChanged = function(v) Settings.Theme = v; saveConfig() end,
-})
-miscY = miscY + 38
-
-makeButton(MiscTab, {
-    Size = UDim2.new(0.44, 0, 0, 32),
-    Position = UDim2.new(0.04, 0, 0, miscY),
-    Color = theme.Success, Text = "Save", TextSize = 11, ZIndex = 6,
-    Callback = function()
-        showNotification(saveConfig() and "Config saved!" or "Save failed", 2, saveConfig() and theme.Success or theme.Danger)
-    end
-})
-makeButton(MiscTab, {
-    Size = UDim2.new(0.44, 0, 0, 32),
-    Position = UDim2.new(0.52, 0, 0, miscY),
-    Color = theme.Info, Text = "Load", TextSize = 11, ZIndex = 6,
-    Callback = function()
-        showNotification(loadConfig() and "Config loaded!" or "No config", 2, loadConfig() and theme.Info or theme.Warning)
-    end
-})
-miscY = miscY + 40
-
-makeButton(MiscTab, {
-    Size = UDim2.new(0.92, 0, 0, 32),
-    Position = UDim2.new(0.04, 0, 0, miscY),
-    Color = theme.Danger, Text = "Destroy Script", TextSize = 12, ZIndex = 6,
-    Callback = function()
-        for _, conn in ipairs(Settings._Connections) do pcall(function() conn:Disconnect() end) end
-        for _, conn in ipairs(Settings.TouchConnections) do pcall(function() conn:Disconnect() end) end
-        if Settings._FOVCircle then pcall(function() Settings._FOVCircle:Remove() end) end
-        for char, _ in pairs(ESP_Cache or {}) do pcall(function() RemoveESP(char) end) end
-        pcall(resetHitboxes)
-        pcall(destroySwordModel)
-        if swordBV then pcall(function() swordBV:Destroy() end) end
-        if swordBG then pcall(function() swordBG:Destroy() end) end
-        ScreenGui:Destroy()
-        showNotification = function() end
-    end
-})
-miscY = miscY + 40
-MiscTab.Size = UDim2.new(1, 0, 0, miscY + 10)
-
--- ============================================================
--- TAB SWITCHING
--- ============================================================
-local function switchTab(tabName)
-    Settings.CurrentTab = tabName
-    for name, frame in pairs(tabFrames) do frame.Visible = (name == tabName) end
-    for name, btn in pairs(tabButtons) do
-        btn.BackgroundColor3 = (name == tabName) and theme.Accent or theme.Surface
-    end
-    local activeFrame = tabFrames[tabName]
-    if activeFrame then ContentArea.CanvasSize = UDim2.new(0, 0, 0, activeFrame.Size.Y.Offset) end
-end
-for name, btn in pairs(tabButtons) do
-    local lastClick = 0
-    btn.MouseButton1Click:Connect(function()
-        local now = tick()
-        if now - lastClick < 0.25 then return end
-        lastClick = now; switchTab(name)
-    end)
-end
-switchTab(Settings.CurrentTab)
-
--- ============================================================
--- MINI ICON
--- ============================================================
-local MiniIcon = Instance.new("Frame")
-MiniIcon.Size = UDim2.new(0, 50, 0, 50)
-MiniIcon.Position = UDim2.new(0, 10, 0.5, -25)
-MiniIcon.BackgroundColor3 = theme.Accent
-MiniIcon.BorderSizePixel = 0; MiniIcon.Active = true; MiniIcon.Visible = false
-MiniIcon.ZIndex = 100; MiniIcon.Parent = ScreenGui
-Instance.new("UICorner", MiniIcon).CornerRadius = UDim.new(1, 0)
-Instance.new("UIStroke", MiniIcon).Color = theme.Text
-
-local MiniIconText = Instance.new("TextLabel")
-MiniIconText.Size = UDim2.new(1, 0, 0.7, 0)
-MiniIconText.BackgroundTransparency = 1; MiniIconText.Text = "V10"
-MiniIconText.TextColor3 = theme.Text; MiniIconText.Font = Enum.Font.GothamBold
-MiniIconText.TextSize = 14; MiniIconText.ZIndex = 102; MiniIconText.Parent = MiniIcon
-
-local MiniStatusDot = Instance.new("Frame")
-MiniStatusDot.Size = UDim2.new(0, 12, 0, 12)
-MiniStatusDot.Position = UDim2.new(1, -6, 0, -4)
-MiniStatusDot.BackgroundColor3 = theme.Danger; MiniStatusDot.BorderSizePixel = 0
-MiniStatusDot.ZIndex = 103; MiniStatusDot.Parent = MiniIcon
-Instance.new("UICorner", MiniStatusDot).CornerRadius = UDim.new(1, 0)
-
-local MiniStatusLabel = Instance.new("TextLabel")
-MiniStatusLabel.Size = UDim2.new(1, 0, 0, 12)
-MiniStatusLabel.Position = UDim2.new(0, 0, 0.7, 0)
-MiniStatusLabel.BackgroundTransparency = 1; MiniStatusLabel.Text = "OFF"
-MiniStatusLabel.TextColor3 = theme.Text; MiniStatusLabel.Font = Enum.Font.GothamBold
-MiniStatusLabel.TextSize = 9; MiniStatusLabel.ZIndex = 102; MiniStatusLabel.Parent = MiniIcon
-
-local function updateMiniIcon()
-    MiniStatusLabel.Text = Settings.Enabled and "ON" or "OFF"
-    MiniStatusDot.BackgroundColor3 = Settings.Enabled and theme.Success or theme.Danger
-    MiniIcon.BackgroundColor3 = Settings.Enabled and theme.Success or theme.Accent
-end
-
-local MiniDrag = Instance.new("Frame")
-MiniDrag.Size = UDim2.new(1, 0, 1, 0); MiniDrag.BackgroundTransparency = 1
-MiniDrag.Active = true; MiniDrag.ZIndex = 105; MiniDrag.Parent = MiniIcon
-
-do
-    local miniDragging = false
-    local miniDragStart = nil
-    local miniStartPos = nil
-    local miniDragInput = nil
-    local miniMoved = false
-
-    MiniDrag.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.Touch or
-           input.UserInputType == Enum.UserInputType.MouseButton1 then
-            miniDragging = true
-            miniMoved = false
-            miniDragStart = input.Position
-            miniStartPos = MiniIcon.Position
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    if not miniMoved then
-                        Settings.Minimized = false; MiniIcon.Visible = false; MainFrame.Visible = true
-                    end
-                    miniDragging = false
-                end
-            end)
-        end
-    end)
-    MiniDrag.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.Touch or
-           input.UserInputType == Enum.UserInputType.MouseMovement then
-            miniDragInput = input
-        end
-    end)
-    local miniConn = UserInputService.InputChanged:Connect(function(input)
-        if input == miniDragInput and miniDragging then
-            local delta = input.Position - miniDragStart
-            if delta.Magnitude > 5 then miniMoved = true end
-            MiniIcon.Position = UDim2.new(miniStartPos.X.Scale, miniStartPos.X.Offset + delta.X,
-                miniStartPos.Y.Scale, miniStartPos.Y.Offset + delta.Y)
-        end
-    end)
-    table.insert(Settings._Connections, miniConn)
-end
-
-local minimizeLastClick = 0
-MinimizeBtn.MouseButton1Click:Connect(function()
-    local now = tick()
-    if now - minimizeLastClick < 0.25 then return end
-    minimizeLastClick = now
-    Settings.Minimized = true; MainFrame.Visible = false; MiniIcon.Visible = true; updateMiniIcon()
+Tabs.Misc:AddToggle("SwordFly", {Title = "Sword Fly", Description = "Fly on a sword", Default = false})
+Options.SwordFly:OnChanged(function(Value)
+    Settings.SwordFlyEnabled = Value
+    if Value then Settings.FlyEnabled = false; Options.Fly:SetValue(false) end
 end)
-makeDraggable(TitleBar, MainFrame)
+
+Tabs.Misc:AddSlider("SwordSpeed", {Title = "Sword Speed", Default = 80, Min = 20, Max = 300, Rounding = 0})
+Options.SwordSpeed:OnChanged(function(Value) Settings.SwordFlySpeed = Value end)
+
+Tabs.Misc:AddToggle("AntiVoid", {Title = "Anti-Void", Default = false})
+Options.AntiVoid:OnChanged(function(Value) Settings.AntiVoid = Value end)
+
+Tabs.Misc:AddToggle("NoClip", {Title = "NoClip", Default = false})
+Options.NoClip:OnChanged(function(Value) Settings.NoClip = Value end)
+
+Tabs.Misc:AddToggle("DebugMode", {Title = "Debug Mode", Default = false})
+Options.DebugMode:OnChanged(function(Value) Settings.DebugMode = Value end)
+
+-- SaveManager / InterfaceManager
+SaveManager:SetLibrary(Fluent)
+InterfaceManager:SetLibrary(Fluent)
+SaveManager:IgnoreThemeSettings()
+SaveManager:SetIgnoreIndexes({})
+InterfaceManager:SetFolder("KillAuraV10")
+SaveManager:SetFolder("KillAuraV10/config")
+InterfaceManager:BuildInterfaceSection(Tabs.Misc)
+SaveManager:BuildConfigSection(Tabs.Misc)
+
+Window:SelectTab(1)
 
 -- ============================================================
--- ADVANCED REMOTE SPY (spy ALL remotes, not just damage keywords)
+-- ADVANCED REMOTE SPY
 -- ============================================================
 local RemoteSpyData = {}
 
@@ -1710,10 +552,6 @@ local function startRemoteSpy()
                 if not RemoteSpyData[self] then
                     RemoteSpyData[self] = {args = {}, count = 0, name = self.Name, path = self:GetFullName()}
                     Settings.SpyRemotes[self] = RemoteSpyData[self]
-                    showNotification("Spy: " .. self.Name, 3, theme.Warning)
-                    local count = 0
-                    for _ in pairs(Settings.SpyRemotes) do count = count + 1 end
-                    SpyStatusLabel.Text = "Spy: " .. count .. " | Scan: " .. #Settings.AllDamageRemotes .. " | Touch: " .. #Settings.TouchConnections
                 end
                 RemoteSpyData[self].args = args
                 RemoteSpyData[self].count = RemoteSpyData[self].count + 1
@@ -1729,13 +567,13 @@ local function startRemoteSpy()
         end
         return oldNamecall(self, ...)
     end)
-    log("RemoteSpy started (extended keywords)")
+    log("RemoteSpy started")
 end
 
 task.spawn(startRemoteSpy)
 
 -- ============================================================
--- UNIVERSAL REMOTE SCANNER - SCAN EVERYTHING
+-- UNIVERSAL REMOTE SCANNER
 -- ============================================================
 local DAMAGE_KEYWORDS = {
     "damage", "hit", "fire", "shoot", "weapon", "gun", "attack",
@@ -1782,7 +620,6 @@ local function deepScanAllRemotes()
     local found = {}
     local scanned = {}
 
-    -- Priority scan: ReplicatedStorage first (most games store remotes here)
     local priorityContainers = {ReplicatedStorage}
     local secondaryContainers = {}
     pcall(function() table.insert(priorityContainers, Workspace) end)
@@ -1808,10 +645,8 @@ local function deepScanAllRemotes()
         end)
     end
 
-    -- Scan priority containers first
     for _, c in ipairs(priorityContainers) do scanContainer(c) end
 
-    -- Scan nil instances
     if hasGetNilInstances then
         pcall(function()
             for _, obj in ipairs(getnilinstances()) do
@@ -1824,7 +659,6 @@ local function deepScanAllRemotes()
         end)
     end
 
-    -- Secondary containers in background
     task.spawn(function()
         for _, c in ipairs(secondaryContainers) do scanContainer(c) end
     end)
@@ -1832,7 +666,6 @@ local function deepScanAllRemotes()
     return found
 end
 
--- Game type detection
 local function detectGameType()
     local gameType = "Unknown"
     local indicators = {
@@ -1849,15 +682,13 @@ local function detectGameType()
         for _, kw in ipairs(keywords) do
             for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
                 if obj.Name:lower():find(kw:lower(), 1, true) then
-                    gameType = type_
-                    break
+                    gameType = type_; break
                 end
             end
             if gameType ~= "Unknown" then break end
             for _, obj in ipairs(Workspace:GetDescendants()) do
                 if obj:IsA("Tool") and obj.Name:lower():find(kw:lower(), 1, true) then
-                    gameType = type_
-                    break
+                    gameType = type_; break
                 end
             end
             if gameType ~= "Unknown" then break end
@@ -1874,9 +705,7 @@ function scanRemotes()
     Settings.AllDamageRemotes = {}
     Settings.AllRemotes = {}
     Settings.DetectedMethod = nil
-    StatusLabel.Text = "Status: Deep scanning ALL..."
 
-    -- Known game framework paths
     local knownPaths = {
         {path = {"Eventos"}, names = {"WeaponFired", "WeaponHit"}, method = "WeaponHit", keys = {"WeaponFired", "WeaponHit"}},
         {path = {"SystemResources", "BufferCache"}, names = {"RequestActionSync"}, method = "RequestActionSync", keys = {"RequestActionSync"}},
@@ -1905,7 +734,6 @@ function scanRemotes()
         end
     end
 
-    -- Deep scan ALL remotes
     local allDamage = deepScanAllRemotes()
     Settings.AllDamageRemotes = allDamage
 
@@ -1916,36 +744,10 @@ function scanRemotes()
         end
     end
 
-    -- Scan custom inventory/combat systems
     scanCustomSystems()
+    detectGameType()
 
-    -- Detect game type
-    local gameType = detectGameType()
-    local customInfo = Settings.HasCustomInventory and " [CUSTOM]" or ""
-    GameTypeLabel.Text = "Game: " .. gameType .. customInfo .. " | R:" .. #Settings.AllRemotes
-    GameTypeLabel.TextColor3 = theme.Info
-
-    local spyCount = 0
-    for _ in pairs(Settings.SpyRemotes) do spyCount = spyCount + 1 end
-    local totalRemotes = #allDamage + spyCount
-
-    if Settings.DetectedMethod then
-        StatusLabel.Text = "Method: " .. Settings.DetectedMethod
-        StatusLabel.TextColor3 = theme.Success
-    elseif totalRemotes > 0 then
-        StatusLabel.Text = "Generic (" .. totalRemotes .. " remotes)"
-        StatusLabel.TextColor3 = theme.Warning
-    elseif Settings.HasCustomInventory and #Settings.HotbarRemotes > 0 then
-        StatusLabel.Text = "Custom System (" .. #Settings.HotbarRemotes .. " hotbar)"
-        StatusLabel.TextColor3 = theme.Info
-    else
-        StatusLabel.Text = "No remote - fire weapon to learn"
-        StatusLabel.TextColor3 = theme.Danger
-    end
-
-    SpyStatusLabel.Text = "Spy:" .. spyCount .. " Scan:" .. #allDamage .. " Cust:" .. #Settings.HotbarRemotes .. " All:" .. #Settings.AllRemotes
-    log("Scan: " .. #allDamage .. " damage, " .. #Settings.AllRemotes .. " total, " .. spyCount .. " spy, " ..
-        #Settings.HotbarRemotes .. " hotbar, " .. #Settings.CustomCombatRemotes .. " framework, type=" .. gameType)
+    log("Scan: " .. #allDamage .. " damage, " .. #Settings.AllRemotes .. " total, type=" .. Settings.DetectedGameType)
 end
 
 task.spawn(scanRemotes)
@@ -1966,7 +768,6 @@ local function findWeapon()
             if tool then pcall(function() tool.Parent = LocalPlayer.Character end); return tool end
         end
     end
-    -- Check custom weapon folders (games that store weapons in non-standard locations)
     if Settings.AutoWeaponEquip then
         local weaponFolders = {"Weapons", "Items", "Equipment", "Loadout", "Arsenal"}
         for _, folderName in ipairs(weaponFolders) do
@@ -1974,24 +775,10 @@ local function findWeapon()
                 local folder = LocalPlayer:FindFirstChild(folderName)
                 if folder then
                     local tool = folder:FindFirstChildOfClass("Tool")
-                    if tool then
-                        pcall(function() tool.Parent = LocalPlayer.Character end)
-                        return tool
-                    end
+                    if tool then pcall(function() tool.Parent = LocalPlayer.Character end) end
                 end
             end)
         end
-        -- Check StarterPack clones
-        pcall(function()
-            local sp = game:GetService("StarterPack")
-            for _, tool in ipairs(sp:GetChildren()) do
-                if tool:IsA("Tool") then
-                    local clone = tool:Clone()
-                    clone.Parent = LocalPlayer.Character
-                    return clone
-                end
-            end
-        end)
     end
     return nil
 end
@@ -2015,9 +802,7 @@ end
 
 -- ============================================================
 -- CUSTOM INVENTORY/HOTBAR SYSTEM DETECTION
--- Games that don't use default Roblox Backpack/Tool system
 -- ============================================================
-
 local COMBAT_REMOTE_KEYWORDS = {
     "attack", "swing", "slash", "punch", "kick", "hit", "strike",
     "combat", "fight", "use", "activate", "ability", "skill",
@@ -2041,44 +826,28 @@ end
 
 local function findCustomWeapons()
     local customWeapons = {}
-
-    -- Scan PlayerGui for custom hotbar/inventory UI elements
     pcall(function()
         local gui = LocalPlayer:FindFirstChild("PlayerGui")
         if gui then
             for _, desc in ipairs(gui:GetDescendants()) do
-                -- Look for ViewportFrame items (3D weapon previews in custom hotbars)
                 if desc:IsA("ViewportFrame") then
                     local parent = desc.Parent
                     if parent and (parent:IsA("ImageButton") or parent:IsA("TextButton") or parent:IsA("Frame")) then
-                        table.insert(customWeapons, {
-                            type = "UISlot",
-                            button = parent,
-                            name = parent.Name,
-                            source = "PlayerGui"
-                        })
+                        table.insert(customWeapons, {type = "UISlot", button = parent, name = parent.Name, source = "PlayerGui"})
                     end
                 end
-                -- Look for buttons with weapon/skill names
                 if (desc:IsA("TextButton") or desc:IsA("ImageButton")) then
                     local nameLower = desc.Name:lower()
                     if nameLower:find("slot") or nameLower:find("weapon") or nameLower:find("skill")
                        or nameLower:find("ability") or nameLower:find("attack") or nameLower:find("hotbar")
                        or nameLower:find("item") or nameLower:find("equip") or nameLower:find("tool")
                        or nameLower:find("btn") or nameLower:find("action") then
-                        table.insert(customWeapons, {
-                            type = "UIButton",
-                            button = desc,
-                            name = desc.Name,
-                            source = "PlayerGui"
-                        })
+                        table.insert(customWeapons, {type = "UIButton", button = desc, name = desc.Name, source = "PlayerGui"})
                     end
                 end
             end
         end
     end)
-
-    -- Scan for weapon models in character that aren't Tools
     pcall(function()
         local char = LocalPlayer.Character
         if char then
@@ -2086,69 +855,18 @@ local function findCustomWeapons()
                 if obj:IsA("Model") and not obj:IsA("Tool") then
                     local handle = obj:FindFirstChild("Handle") or obj:FindFirstChildWhichIsA("BasePart")
                     if handle then
-                        table.insert(customWeapons, {
-                            type = "CharModel",
-                            model = obj,
-                            handle = handle,
-                            name = obj.Name,
-                            source = "Character"
-                        })
+                        table.insert(customWeapons, {type = "CharModel", model = obj, handle = handle, name = obj.Name, source = "Character"})
                     end
                 end
                 if obj:IsA("Accessory") then
                     local handle = obj:FindFirstChild("Handle")
                     if handle and handle:FindFirstChild("TouchInterest") then
-                        table.insert(customWeapons, {
-                            type = "WeaponAccessory",
-                            accessory = obj,
-                            handle = handle,
-                            name = obj.Name,
-                            source = "Character"
-                        })
+                        table.insert(customWeapons, {type = "WeaponAccessory", accessory = obj, handle = handle, name = obj.Name, source = "Character"})
                     end
                 end
             end
         end
     end)
-
-    -- Scan ReplicatedStorage for weapon data/models
-    pcall(function()
-        for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
-            if obj:IsA("Model") or obj:IsA("Tool") then
-                local nameLower = obj.Name:lower()
-                if nameLower:find("weapon") or nameLower:find("sword") or nameLower:find("gun")
-                   or nameLower:find("blade") or nameLower:find("staff") or nameLower:find("bow") then
-                    table.insert(customWeapons, {
-                        type = "StoredWeapon",
-                        object = obj,
-                        name = obj.Name,
-                        source = "ReplicatedStorage"
-                    })
-                end
-            end
-        end
-    end)
-
-    -- Check for custom "Weapons" or "Items" folder in player
-    pcall(function()
-        local weaponFolders = {"Weapons", "Items", "Inventory", "Equipment", "Skills", "Abilities", "Loadout", "Arsenal"}
-        for _, folderName in ipairs(weaponFolders) do
-            local folder = LocalPlayer:FindFirstChild(folderName)
-                or LocalPlayer.Character and LocalPlayer.Character:FindFirstChild(folderName)
-            if folder then
-                for _, item in ipairs(folder:GetChildren()) do
-                    table.insert(customWeapons, {
-                        type = "CustomFolder",
-                        object = item,
-                        name = item.Name,
-                        folder = folderName,
-                        source = "CustomFolder:" .. folderName
-                    })
-                end
-            end
-        end
-    end)
-
     Settings.CustomWeapons = customWeapons
     Settings.HasCustomInventory = #customWeapons > 0 or
         (not LocalPlayer:FindFirstChildWhichIsA("Backpack") or #LocalPlayer.Backpack:GetChildren() == 0)
@@ -2157,8 +875,6 @@ end
 
 local function findHotbarRemotes()
     local hotbarRemotes = {}
-
-    -- Method 1: Scan for RemoteEvents with combat-related names
     pcall(function()
         for _, remote in ipairs(Settings.AllRemotes) do
             if remote:IsA("RemoteEvent") and isLikelyCombatRemote(remote.Name) then
@@ -2166,8 +882,6 @@ local function findHotbarRemotes()
             end
         end
     end)
-
-    -- Method 2: Use getconnections to find remotes connected to UI buttons
     if hasGetConnections then
         pcall(function()
             local gui = LocalPlayer:FindFirstChild("PlayerGui")
@@ -2177,28 +891,7 @@ local function findHotbarRemotes()
                         local connections = getconnections(desc.Activated) or {}
                         for _, conn in ipairs(connections) do
                             pcall(function()
-                                local func = conn.Function or conn.function_
-                                if func then
-                                    table.insert(hotbarRemotes, {
-                                        type = "ButtonConnection",
-                                        button = desc,
-                                        fire = function()
-                                            pcall(function() conn:Fire() end)
-                                        end
-                                    })
-                                end
-                            end)
-                        end
-                        local connections2 = getconnections(desc.MouseButton1Click) or {}
-                        for _, conn in ipairs(connections2) do
-                            pcall(function()
-                                table.insert(hotbarRemotes, {
-                                    type = "ButtonConnection",
-                                    button = desc,
-                                    fire = function()
-                                        pcall(function() conn:Fire() end)
-                                    end
-                                })
+                                table.insert(hotbarRemotes, {type = "ButtonConnection", button = desc, fire = function() pcall(function() conn:Fire() end) end})
                             end)
                         end
                     end
@@ -2206,8 +899,6 @@ local function findHotbarRemotes()
             end
         end)
     end
-
-    -- Method 3: getgc to find combat-related functions
     if hasGetGC then
         pcall(function()
             for _, v in ipairs(getgc(true)) do
@@ -2217,16 +908,8 @@ local function findHotbarRemotes()
                             local keyLower = key:lower()
                             if keyLower == "attack" or keyLower == "swing" or keyLower == "m1"
                                or keyLower == "lightattack" or keyLower == "heavyattack"
-                               or keyLower == "basicattack" or keyLower == "combatattack"
-                               or keyLower == "useweapon" or keyLower == "slash"
-                               or keyLower == "punchattack" or keyLower == "kickattack" then
-                                table.insert(hotbarRemotes, {
-                                    type = "GCFunction",
-                                    name = key,
-                                    fire = function()
-                                        pcall(func)
-                                    end
-                                })
+                               or keyLower == "basicattack" or keyLower == "slash" then
+                                table.insert(hotbarRemotes, {type = "GCFunction", name = key, fire = function() pcall(func) end})
                             end
                         end
                     end
@@ -2234,136 +917,51 @@ local function findHotbarRemotes()
             end
         end)
     end
-
-    -- Method 4: Scan for BindableEvents that trigger attacks
-    pcall(function()
-        local containers = {ReplicatedStorage, LocalPlayer:FindFirstChild("PlayerScripts")}
-        for _, container in ipairs(containers) do
-            if container then
-                for _, obj in ipairs(container:GetDescendants()) do
-                    if obj:IsA("BindableEvent") and isLikelyCombatRemote(obj.Name) then
-                        table.insert(hotbarRemotes, {
-                            type = "BindableEvent",
-                            event = obj,
-                            name = obj.Name,
-                            fire = function()
-                                pcall(function() obj:Fire() end)
-                            end
-                        })
-                    end
-                end
-            end
-        end
-    end)
-
     Settings.HotbarRemotes = hotbarRemotes
     return hotbarRemotes
 end
 
 local function simulateCustomAttack(t, targetPart, myRoot)
     local dir = (targetPart.Position - myRoot.Position).Unit
-    local success = false
-
-    -- 1. Fire all discovered hotbar/combat remotes
     for _, entry in ipairs(Settings.HotbarRemotes) do
         task.spawn(function()
             if entry.fire then
                 pcall(entry.fire)
-                success = true
             elseif entry:IsA("RemoteEvent") then
-                -- Try multiple arg patterns for custom combat systems
                 pcall(function() entry:FireServer() end)
                 pcall(function() entry:FireServer("Attack") end)
                 pcall(function() entry:FireServer(targetPart.Position) end)
                 pcall(function() entry:FireServer(targetPart, dir) end)
-                pcall(function() entry:FireServer("M1") end)
-                pcall(function() entry:FireServer("LightAttack") end)
-                pcall(function() entry:FireServer(1) end)
-                pcall(function() entry:FireServer(true) end)
-                pcall(function() entry:FireServer({Position = targetPart.Position, Direction = dir}) end)
-                pcall(function() entry:FireServer(targetPart.Parent) end)
-                pcall(function() entry:FireServer(CFrame.lookAt(myRoot.Position, targetPart.Position)) end)
-                pcall(function() entry:FireServer("Swing", targetPart.Position) end)
-                pcall(function() entry:FireServer("Hit", targetPart, t.humanoid) end)
-                pcall(function() entry:FireServer(targetPart.Parent.Name) end)
-                success = true
             end
         end)
     end
-
-    -- 2. Simulate UI button clicks on custom hotbar
     for _, weapon in ipairs(Settings.CustomWeapons) do
         task.spawn(function()
             if weapon.type == "UISlot" or weapon.type == "UIButton" then
-                pcall(function()
-                    -- Fire virtual input on the button
-                    if hasGetConnections then
-                        local btn = weapon.button
-                        local conns = getconnections(btn.Activated)
-                        for _, conn in ipairs(conns or {}) do pcall(function() conn:Fire() end) end
-                        local conns2 = getconnections(btn.MouseButton1Click)
-                        for _, conn in ipairs(conns2 or {}) do pcall(function() conn:Fire() end) end
-                    end
-                end)
-                success = true
-            elseif weapon.type == "CharModel" or weapon.type == "WeaponAccessory" then
-                -- Touch the target with the weapon part
-                local handle = weapon.handle
-                if handle and hasFireTouchInterest then
+                if hasGetConnections then
                     pcall(function()
-                        firetouchinterest(handle, targetPart, 0)
-                        task.wait()
-                        firetouchinterest(handle, targetPart, 1)
+                        local conns = getconnections(weapon.button.Activated)
+                        for _, conn in ipairs(conns or {}) do pcall(function() conn:Fire() end) end
                     end)
-                    success = true
+                end
+            elseif (weapon.type == "CharModel" or weapon.type == "WeaponAccessory") and hasFireTouchInterest then
+                local handle = weapon.handle
+                if handle then
+                    pcall(function() firetouchinterest(handle, targetPart, 0); task.wait(); firetouchinterest(handle, targetPart, 1) end)
                 end
             end
         end)
     end
-
-    -- 3. Fire UserInputService simulation for attack keybinds
-    pcall(function()
-        -- Many custom systems listen for specific key inputs
-        local viu = game:GetService("VirtualInputManager")
-        if viu then
-            pcall(function() viu:SendMouseButtonEvent(0, 0, 0, true, game, 0) end)
-            task.wait(0.02)
-            pcall(function() viu:SendMouseButtonEvent(0, 0, 0, false, game, 0) end)
-        end
-    end)
-
-    -- 4. Try firing all combat-keyword remotes with no args (many custom systems just need :FireServer())
-    if not success then
-        for _, remote in ipairs(Settings.AllRemotes) do
-            if remote:IsA("RemoteEvent") and isLikelyCombatRemote(remote.Name) then
-                task.spawn(function()
-                    pcall(function() remote:FireServer() end)
-                    pcall(function() remote:FireServer(targetPart.Position) end)
-                    pcall(function() remote:FireServer(targetPart, dir) end)
-                    pcall(function() remote:FireServer("Attack", targetPart.Position, dir) end)
-                end)
-            end
-        end
-    end
-
-    return success
 end
 
--- Scan for custom combat systems (run once on init + periodically)
-local function scanCustomSystems()
+function scanCustomSystems()
     findCustomWeapons()
     findHotbarRemotes()
-
-    -- Check for common custom frameworks
     pcall(function()
         local customFrameworks = {
-            {path = "ReplicatedStorage.Modules.Combat", method = "CustomCombat"},
-            {path = "ReplicatedStorage.Combat", method = "CustomCombat"},
-            {path = "ReplicatedStorage.Systems.Combat", method = "CustomCombat"},
-            {path = "ReplicatedStorage.Shared.Combat", method = "CustomCombat"},
-            {path = "ReplicatedStorage.Framework", method = "CustomFramework"},
-            {path = "ReplicatedStorage.Knit", method = "KnitFramework"},
-            {path = "ReplicatedStorage.Packages", method = "WallyPackage"},
+            {path = "ReplicatedStorage.Modules.Combat"}, {path = "ReplicatedStorage.Combat"},
+            {path = "ReplicatedStorage.Systems.Combat"}, {path = "ReplicatedStorage.Framework"},
+            {path = "ReplicatedStorage.Knit"},
         }
         for _, fw in ipairs(customFrameworks) do
             local parts = fw.path:split(".")
@@ -2374,7 +972,6 @@ local function scanCustomSystems()
                 if not current then found = false; break end
             end
             if found and current then
-                -- Scan this framework folder for remotes
                 for _, obj in ipairs(current:GetDescendants()) do
                     if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
                         table.insert(Settings.CustomCombatRemotes, obj)
@@ -2383,11 +980,6 @@ local function scanCustomSystems()
             end
         end
     end)
-
-    log("Custom scan: " .. #Settings.CustomWeapons .. " weapons, " ..
-        #Settings.HotbarRemotes .. " hotbar remotes, " ..
-        #Settings.CustomCombatRemotes .. " framework remotes, " ..
-        "hasCustomInv=" .. tostring(Settings.HasCustomInventory))
 end
 
 local function isVisible(targetPart)
@@ -2405,10 +997,8 @@ local function isVisible(targetPart)
 end
 
 -- ============================================================
--- 24 ATTACK MODES - ALL METHODS
+-- 25 ATTACK MODES
 -- ============================================================
-
--- 1-14: Original modes (improved)
 local function fireMethod(t, targetPart, weapon, myRoot)
     local method = Settings.DetectedMethod
     local R = Settings.CachedRemotes
@@ -2416,17 +1006,10 @@ local function fireMethod(t, targetPart, weapon, myRoot)
 
     if method == "WeaponHit" and R.WeaponFired and R.WeaponHit then
         R.WeaponFired:FireServer(weapon, {id = math.random(1, 99), charge = 0, origin = myRoot.Position, dir = dir})
-        R.WeaponHit:FireServer(weapon, {
-            p = targetPart.Position, pid = 1, part = targetPart,
-            d = t.distance, maxDist = t.distance + 1, h = t.humanoid,
-            m = Enum.Material.Plastic, n = Vector3.new(0, 1, 0), t = 0.1, sid = math.random(1, 99)
-        })
+        R.WeaponHit:FireServer(weapon, {p = targetPart.Position, pid = 1, part = targetPart, d = t.distance, maxDist = t.distance + 1, h = t.humanoid, m = Enum.Material.Plastic, n = Vector3.new(0, 1, 0), t = 0.1, sid = math.random(1, 99)})
         return true
     elseif method == "RequestActionSync" and R.RequestActionSync then
-        R.RequestActionSync:FireServer({{
-            direction = dir, hitPosition = targetPart.Position, origin = myRoot.Position,
-            hitInstance = targetPart, hitHumanoid = t.humanoid, IsHeadshot = (Settings.TargetPart == "Head")
-        }})
+        R.RequestActionSync:FireServer({{direction = dir, hitPosition = targetPart.Position, origin = myRoot.Position, hitInstance = targetPart, hitHumanoid = t.humanoid, IsHeadshot = (Settings.TargetPart == "Head")}})
         return true
     elseif method == "GunRemote" and R.GunRemote then
         R.GunRemote:FireServer(1, weapon, targetPart.Position, Vector3.yAxis, targetPart)
@@ -2434,20 +1017,14 @@ local function fireMethod(t, targetPart, weapon, myRoot)
     elseif method == "WeaponsSystem" and R.WSFired and R.WSHit then
         local sid = math.random(10, 999)
         R.WSFired:FireServer(weapon, {id = sid, charge = 0, origin = myRoot.Position, dir = dir})
-        R.WSHit:FireServer(weapon, {p = targetPart.Position, pid = 1, part = targetPart,
-            d = t.distance, maxDist = t.distance + 1, h = t.humanoid,
-            m = Enum.Material.Plastic, n = Vector3.new(0, 1, 0), t = 0.1, sid = sid})
+        R.WSHit:FireServer(weapon, {p = targetPart.Position, pid = 1, part = targetPart, d = t.distance, maxDist = t.distance + 1, h = t.humanoid, m = Enum.Material.Plastic, n = Vector3.new(0, 1, 0), t = 0.1, sid = sid})
         return true
     elseif method == "FireWeapon" and R.FireWeapon then
         local origin = myRoot.Position + Vector3.new(0, 1.5, 0)
-        R.FireWeapon:FireServer("Main", origin, dir, {
-            [1] = {Normal = Vector3.new(0, 1, 0), Direction = dir,
-                   Position = targetPart.Position, Hit = targetPart, Bounce = 0, Origin = origin}
-        })
+        R.FireWeapon:FireServer("Main", origin, dir, {[1] = {Normal = Vector3.new(0, 1, 0), Direction = dir, Position = targetPart.Position, Hit = targetPart, Bounce = 0, Origin = origin}})
         return true
     end
 
-    -- Generic: try ALL cached remotes with multiple signatures
     local tried = false
     for _, remote in pairs(R) do
         if typeof(remote) == "Instance" and remote:IsA("RemoteEvent") then
@@ -2461,17 +1038,8 @@ local function fireMethod(t, targetPart, weapon, myRoot)
                 function() remote:FireServer(targetPart, t.humanoid) end,
                 function() remote:FireServer("Attack", targetPart, t.humanoid) end,
                 function() remote:FireServer("Hit", targetPart, dir) end,
-                function() remote:FireServer(myRoot.Position, dir, targetPart, t.humanoid) end,
-                function() remote:FireServer("Damage", t.humanoid, 100) end,
-                function() remote:FireServer(targetPart.Parent, targetPart, 100) end,
-                function() remote:FireServer({Target = targetPart, Damage = 100, Attacker = LocalPlayer}) end,
-                function() remote:FireServer(targetPart.Parent.Name, targetPart.Position) end,
-                function() remote:FireServer(t.humanoid, targetPart.Position, dir) end,
-                function() remote:FireServer("Hit", {Part = targetPart, Position = targetPart.Position, Normal = dir}) end,
             }
-            for _, sig in ipairs(sigs) do
-                if pcall(sig) then return true end
-            end
+            for _, sig in ipairs(sigs) do if pcall(sig) then return true end end
         end
     end
     return tried
@@ -2479,9 +1047,7 @@ end
 
 local function spyReplayAttack(t, targetPart, weapon, myRoot)
     local dir = (targetPart.Position - myRoot.Position).Unit
-    local origin = myRoot.Position
     local successAny = false
-
     for remote, data in pairs(Settings.SpyRemotes) do
         if remote and remote.Parent then
             local args = data.args
@@ -2499,13 +1065,10 @@ local function spyReplayAttack(t, targetPart, weapon, myRoot)
                                 if cloned.hitHumanoid then cloned.hitHumanoid = t.humanoid end
                                 if cloned.part then cloned.part = targetPart end
                                 if cloned.h then cloned.h = t.humanoid end
-                                if cloned.origin then cloned.origin = origin end
+                                if cloned.origin then cloned.origin = myRoot.Position end
                                 if cloned.dir then cloned.dir = dir end
                                 if cloned.direction then cloned.direction = dir end
                                 if cloned.Target then cloned.Target = targetPart end
-                                if cloned.Humanoid then cloned.Humanoid = t.humanoid end
-                                if cloned.Character then cloned.Character = targetPart.Parent end
-                                if cloned.Player then cloned.Player = t.player end
                                 newArgs[i] = cloned
                             elseif typeof(arg) == "Vector3" then
                                 newArgs[i] = arg.Magnitude > 0.5 and arg.Magnitude < 1.5 and dir or targetPart.Position
@@ -2516,7 +1079,6 @@ local function spyReplayAttack(t, targetPart, weapon, myRoot)
                                 elseif arg:IsA("BasePart") then newArgs[i] = targetPart
                                 elseif arg:IsA("Tool") then newArgs[i] = weapon or arg
                                 elseif arg:IsA("Model") then newArgs[i] = targetPart.Parent
-                                elseif arg:IsA("Player") then newArgs[i] = t.player or arg
                                 else newArgs[i] = arg end
                             else newArgs[i] = arg end
                         end
@@ -2536,8 +1098,6 @@ local function silentAttack(t, targetPart, myRoot)
             pcall(function() remote:FireServer(t.humanoid, 100, targetPart) end)
             pcall(function() remote:FireServer(targetPart, 100) end)
             pcall(function() remote:FireServer(t.humanoid, targetPart) end)
-            pcall(function() remote:FireServer("Damage", t.humanoid, 9999) end)
-            pcall(function() remote:FireServer({Target = targetPart.Parent, Damage = 100}) end)
         end
     end
 end
@@ -2569,18 +1129,11 @@ end
 local function hitboxExpandAttack(t, targetPart, weapon, myRoot)
     pcall(function()
         if targetPart and targetPart:IsA("BasePart") then
-            targetPart.Size = Vector3.new(20, 20, 20)
-            targetPart.Transparency = 0.9
-            targetPart.CanCollide = false
+            targetPart.Size = Vector3.new(20, 20, 20); targetPart.Transparency = 0.9; targetPart.CanCollide = false
         end
-        if t.root then
-            t.root.Size = Vector3.new(15, 15, 15)
-            t.root.Transparency = 0.9
-            t.root.CanCollide = false
-        end
+        if t.root then t.root.Size = Vector3.new(15, 15, 15); t.root.Transparency = 0.9; t.root.CanCollide = false end
     end)
     fireMethod(t, targetPart, weapon, myRoot)
-    if weapon then pcall(function() weapon:Activate() end) end
 end
 
 local function flingKillAttack(t, targetPart, weapon, myRoot)
@@ -2589,7 +1142,7 @@ local function flingKillAttack(t, targetPart, weapon, myRoot)
             local bv = Instance.new("BodyVelocity")
             bv.Velocity = Vector3.new(math.random(-9999, 9999), 99999, math.random(-9999, 9999))
             bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-            bv.P = math.huge; bv.Parent = t.root
+            bv.Parent = t.root
             task.delay(0.3, function() if bv and bv.Parent then bv:Destroy() end end)
         end
     end)
@@ -2598,19 +1151,12 @@ end
 
 local function raycastSpamAttack(t, targetPart, weapon, myRoot)
     for _ = 1, 10 do
-        task.spawn(function()
-            pcall(function() fireMethod(t, targetPart, weapon, myRoot) end)
-            if weapon then pcall(function() weapon:Activate() end) end
-        end)
+        task.spawn(function() pcall(function() fireMethod(t, targetPart, weapon, myRoot) end) end)
     end
 end
 
 local function multiHitAttack(t, targetPart, weapon, myRoot)
-    for _ = 1, 5 do
-        fireMethod(t, targetPart, weapon, myRoot)
-        if weapon then pcall(function() weapon:Activate() end) end
-        task.wait(0.01)
-    end
+    for _ = 1, 5 do fireMethod(t, targetPart, weapon, myRoot); task.wait(0.01) end
 end
 
 local function remoteSpamAttack(t, targetPart, weapon, myRoot)
@@ -2620,11 +1166,8 @@ local function remoteSpamAttack(t, targetPart, weapon, myRoot)
             pcall(function() remote:FireServer(t.humanoid, 100, targetPart) end)
             pcall(function() remote:FireServer(targetPart, 100) end)
             pcall(function() remote:FireServer(targetPart, dir, 100) end)
-            pcall(function() remote:FireServer("Hit", targetPart, t.humanoid) end)
-            pcall(function() remote:FireServer({Target = targetPart, Damage = 100}) end)
         end)
     end
-    if weapon then pcall(function() weapon:Activate() end) end
 end
 
 local function networkBruteAttack(t, targetPart, weapon, myRoot)
@@ -2632,20 +1175,13 @@ local function networkBruteAttack(t, targetPart, weapon, myRoot)
     local allRemotes = {}
     for _, r in pairs(Settings.CachedRemotes) do if typeof(r) == "Instance" then table.insert(allRemotes, r) end end
     for _, r in ipairs(Settings.AllDamageRemotes) do table.insert(allRemotes, r) end
-
     for _, remote in ipairs(allRemotes) do
         task.spawn(function()
             pcall(function() remote:FireServer(targetPart) end)
             pcall(function() remote:FireServer(t.humanoid, 100, targetPart) end)
-            pcall(function() remote:FireServer(targetPart, 100) end)
             pcall(function() remote:FireServer(weapon, targetPart, dir) end)
-            pcall(function() remote:FireServer(myRoot.Position, dir, targetPart, t.humanoid) end)
-            pcall(function() remote:FireServer("Damage", 100, targetPart) end)
-            pcall(function() remote:FireServer({Target = targetPart.Parent, Part = targetPart, Damage = 100, Direction = dir}) end)
-            pcall(function() remote:FireServer(targetPart.Parent.Name, 100) end)
         end)
     end
-    if weapon then pcall(function() weapon:Activate() end) end
 end
 
 local function universalAttack(t, targetPart, weapon, myRoot)
@@ -2656,99 +1192,39 @@ local function universalAttack(t, targetPart, weapon, myRoot)
     if weapon then pcall(function() weapon:Activate() end) end
 end
 
--- 15. Touch Damage - firetouchinterest
 local function touchDamageAttack(t, targetPart, weapon, myRoot)
-    if not hasFireTouchInterest then
-        fireMethod(t, targetPart, weapon, myRoot)
-        return
-    end
-
+    if not hasFireTouchInterest then fireMethod(t, targetPart, weapon, myRoot); return end
     local char = LocalPlayer.Character
     if not char then return end
-
-    -- touch with weapon handle
     if weapon then
         local handle = weapon:FindFirstChild("Handle")
-        if handle then
-            pcall(function()
-                firetouchinterest(handle, targetPart, 0)
-                task.wait()
-                firetouchinterest(handle, targetPart, 1)
-            end)
-        end
+        if handle then pcall(function() firetouchinterest(handle, targetPart, 0); task.wait(); firetouchinterest(handle, targetPart, 1) end) end
     end
-
-    -- touch with all character parts
     for _, part in ipairs(char:GetChildren()) do
         if part:IsA("BasePart") then
-            pcall(function()
-                firetouchinterest(part, targetPart, 0)
-                task.wait()
-                firetouchinterest(part, targetPart, 1)
-            end)
-        end
-    end
-
-    -- touch target root with our root
-    if t.root then
-        pcall(function()
-            firetouchinterest(myRoot, t.root, 0)
-            task.wait()
-            firetouchinterest(myRoot, t.root, 1)
-        end)
-    end
-
-    -- touch all target parts
-    if t.character then
-        for _, part in ipairs(t.character:GetChildren()) do
-            if part:IsA("BasePart") then
-                pcall(function()
-                    firetouchinterest(myRoot, part, 0)
-                    task.wait()
-                    firetouchinterest(myRoot, part, 1)
-                end)
-            end
+            pcall(function() firetouchinterest(part, targetPart, 0); task.wait(); firetouchinterest(part, targetPart, 1) end)
         end
     end
 end
 
--- 16. Click Detector
 local function clickDetectorAttack(t, targetPart, weapon, myRoot)
-    if not hasFireClickDetector then
-        fireMethod(t, targetPart, weapon, myRoot)
-        return
-    end
-
-    if t.character then
+    if hasFireClickDetector and t.character then
         for _, obj in ipairs(t.character:GetDescendants()) do
-            if obj:IsA("ClickDetector") then
-                pcall(function() fireclickdetector(obj) end)
-            end
+            if obj:IsA("ClickDetector") then pcall(function() fireclickdetector(obj) end) end
         end
     end
-
     fireMethod(t, targetPart, weapon, myRoot)
 end
 
--- 17. Proximity Prompt
 local function proximityPromptAttack(t, targetPart, weapon, myRoot)
-    if not hasFireProximity then
-        fireMethod(t, targetPart, weapon, myRoot)
-        return
-    end
-
-    if t.character then
+    if hasFireProximity and t.character then
         for _, obj in ipairs(t.character:GetDescendants()) do
-            if obj:IsA("ProximityPrompt") then
-                pcall(function() fireproximityprompt(obj) end)
-            end
+            if obj:IsA("ProximityPrompt") then pcall(function() fireproximityprompt(obj) end) end
         end
     end
-
     fireMethod(t, targetPart, weapon, myRoot)
 end
 
--- 18. Module Exploit - find and call damage functions from modules
 local function moduleExploitAttack(t, targetPart, weapon, myRoot)
     if hasGetGC then
         pcall(function()
@@ -2756,12 +1232,10 @@ local function moduleExploitAttack(t, targetPart, weapon, myRoot)
                 if type(v) == "table" then
                     for key, func in pairs(v) do
                         if type(key) == "string" and type(func) == "function" then
-                            local keyLower = key:lower()
-                            if keyLower:find("damage") or keyLower:find("hit") or keyLower:find("attack")
-                               or keyLower:find("kill") or keyLower:find("hurt") then
+                            local kl = key:lower()
+                            if kl:find("damage") or kl:find("hit") or kl:find("attack") then
                                 pcall(function() func(t.humanoid, 100) end)
                                 pcall(function() func(targetPart, 100) end)
-                                pcall(function() func(t.character, 100) end)
                             end
                         end
                     end
@@ -2769,180 +1243,91 @@ local function moduleExploitAttack(t, targetPart, weapon, myRoot)
             end
         end)
     end
-
     fireMethod(t, targetPart, weapon, myRoot)
 end
 
--- 19. Animation Abuse - play attack animations
 local function animationAbuseAttack(t, targetPart, weapon, myRoot)
     local char = LocalPlayer.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
-    if not hum then return end
-
-    local attackAnimIds = {
-        "rbxassetid://218504594",   -- slash
-        "rbxassetid://218504441",   -- thrust
-        "rbxassetid://522635514",   -- punch
-        "rbxassetid://507770453",   -- kick
-        "rbxassetid://507776879",   -- swing
-    }
-
-    for _, animId in ipairs(attackAnimIds) do
-        pcall(function()
-            local anim = Instance.new("Animation")
-            anim.AnimationId = animId
-            local track = hum:LoadAnimation(anim)
-            track:Play()
-            task.delay(0.3, function() track:Stop() end)
-        end)
-    end
-
-    if weapon then pcall(function() weapon:Activate() end) end
-    fireMethod(t, targetPart, weapon, myRoot)
-
-    -- fire touch during animation
-    if hasFireTouchInterest and weapon then
-        local handle = weapon:FindFirstChild("Handle")
-        if handle then
+    if hum then
+        for _, animId in ipairs({"rbxassetid://218504594", "rbxassetid://218504441", "rbxassetid://522635514"}) do
             pcall(function()
-                firetouchinterest(handle, targetPart, 0)
-                task.wait()
-                firetouchinterest(handle, targetPart, 1)
+                local anim = Instance.new("Animation"); anim.AnimationId = animId
+                local track = hum:LoadAnimation(anim); track:Play()
+                task.delay(0.3, function() track:Stop() end)
             end)
         end
     end
+    if weapon then pcall(function() weapon:Activate() end) end
+    fireMethod(t, targetPart, weapon, myRoot)
 end
 
--- 20. Velocity Kill - crush with physics
 local function velocityKillAttack(t, targetPart, weapon, myRoot)
     pcall(function()
         if t.root then
-            -- slam down
-            local bv = Instance.new("BodyVelocity")
-            bv.Velocity = Vector3.new(0, -99999, 0)
-            bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-            bv.Parent = t.root
+            local bv = Instance.new("BodyVelocity"); bv.Velocity = Vector3.new(0, -99999, 0)
+            bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge); bv.Parent = t.root
             task.delay(0.2, function() if bv.Parent then bv:Destroy() end end)
-
-            -- also spin
-            local bg = Instance.new("BodyAngularVelocity")
-            bg.AngularVelocity = Vector3.new(99999, 99999, 99999)
-            bg.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
-            bg.Parent = t.root
-            task.delay(0.3, function() if bg.Parent then bg:Destroy() end end)
         end
     end)
     fireMethod(t, targetPart, weapon, myRoot)
 end
 
--- 21. CFrame Snap - overlap kill
 local function cframeSnapAttack(t, targetPart, weapon, myRoot)
     local originalCF = myRoot.CFrame
-    -- snap inside target
-    pcall(function()
-        myRoot.CFrame = t.root.CFrame
-        myRoot.Velocity = Vector3.new(0, 0, 0)
-    end)
+    pcall(function() myRoot.CFrame = t.root.CFrame end)
     task.wait(0.02)
-
     if weapon then pcall(function() weapon:Activate() end) end
     fireMethod(t, targetPart, weapon, myRoot)
-
-    -- fire touch
     if hasFireTouchInterest then
         for _, part in ipairs(LocalPlayer.Character:GetChildren()) do
             if part:IsA("BasePart") then
                 for _, tpart in ipairs(t.character:GetChildren()) do
                     if tpart:IsA("BasePart") then
-                        pcall(function()
-                            firetouchinterest(part, tpart, 0)
-                            task.wait()
-                            firetouchinterest(part, tpart, 1)
-                        end)
+                        pcall(function() firetouchinterest(part, tpart, 0); task.wait(); firetouchinterest(part, tpart, 1) end)
                     end
                 end
             end
         end
     end
-
     task.wait(0.02)
     pcall(function() myRoot.CFrame = originalCF end)
 end
 
--- 22. God Mode Kill - make self invincible then fling
 local function godModeKillAttack(t, targetPart, weapon, myRoot)
     local myHum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
     local origHealth
-    if myHum then
-        origHealth = myHum.Health
-        pcall(function() myHum.Health = math.huge end)
-    end
-
-    -- fling at target
+    if myHum then origHealth = myHum.Health; pcall(function() myHum.Health = math.huge end) end
     pcall(function()
         local dir = (targetPart.Position - myRoot.Position).Unit
-        myRoot.CFrame = targetPart.CFrame * CFrame.new(0, 0, 2)
-        myRoot.Velocity = dir * 500
+        myRoot.CFrame = targetPart.CFrame * CFrame.new(0, 0, 2); myRoot.Velocity = dir * 500
     end)
-
     if weapon then pcall(function() weapon:Activate() end) end
     fireMethod(t, targetPart, weapon, myRoot)
-
-    if hasFireTouchInterest and t.root then
-        pcall(function()
-            firetouchinterest(myRoot, t.root, 0)
-            task.wait()
-            firetouchinterest(myRoot, t.root, 1)
-        end)
-    end
-
     task.wait(0.1)
-    if myHum and origHealth then
-        pcall(function() myHum.Health = origHealth end)
-    end
+    if myHum and origHealth then pcall(function() myHum.Health = origHealth end) end
 end
 
--- 23. All Tools Spam - equip and activate every tool
 local function allToolsSpamAttack(t, targetPart, weapon, myRoot)
-    local tools = findAllTools()
-    for _, tool in ipairs(tools) do
+    for _, tool in ipairs(findAllTools()) do
         task.spawn(function()
-            pcall(function()
-                tool.Parent = LocalPlayer.Character
-                local handle = tool:FindFirstChild("Handle")
-                if handle then handle.CFrame = targetPart.CFrame end
-                tool:Activate()
-            end)
+            pcall(function() tool.Parent = LocalPlayer.Character; tool:Activate() end)
             if hasFireTouchInterest then
                 local handle = tool:FindFirstChild("Handle")
-                if handle then
-                    pcall(function()
-                        firetouchinterest(handle, targetPart, 0)
-                        task.wait()
-                        firetouchinterest(handle, targetPart, 1)
-                    end)
-                end
+                if handle then pcall(function() firetouchinterest(handle, targetPart, 0); task.wait(); firetouchinterest(handle, targetPart, 1) end) end
             end
         end)
     end
     fireMethod(t, targetPart, weapon, myRoot)
 end
 
--- 24. Brute Force All - try EVERY single method
 local function bruteForceAllAttack(t, targetPart, weapon, myRoot)
     task.spawn(function() pcall(function() fireMethod(t, targetPart, weapon, myRoot) end) end)
     task.spawn(function() pcall(function() spyReplayAttack(t, targetPart, weapon, myRoot) end) end)
     task.spawn(function() pcall(function() silentAttack(t, targetPart, myRoot) end) end)
     task.spawn(function() pcall(function() clientDamageAttack(t) end) end)
-    task.spawn(function() pcall(function() toolActivateAttack(t, targetPart, weapon) end) end)
     task.spawn(function() pcall(function() touchDamageAttack(t, targetPart, weapon, myRoot) end) end)
-    task.spawn(function() pcall(function() clickDetectorAttack(t, targetPart, weapon, myRoot) end) end)
-    task.spawn(function() pcall(function() animationAbuseAttack(t, targetPart, weapon, myRoot) end) end)
-    task.spawn(function() pcall(function() velocityKillAttack(t, targetPart, weapon, myRoot) end) end)
-    task.spawn(function() pcall(function() moduleExploitAttack(t, targetPart, weapon, myRoot) end) end)
     task.spawn(function() pcall(function() simulateCustomAttack(t, targetPart, myRoot) end) end)
-
-    -- fire ALL remotes with ALL signatures
     local dir = (targetPart.Position - myRoot.Position).Unit
     for _, remote in ipairs(Settings.AllRemotes) do
         if remote:IsA("RemoteEvent") then
@@ -2950,112 +1335,44 @@ local function bruteForceAllAttack(t, targetPart, weapon, myRoot)
                 pcall(function() remote:FireServer(targetPart) end)
                 pcall(function() remote:FireServer(t.humanoid, 100) end)
                 pcall(function() remote:FireServer(targetPart, 100) end)
-                pcall(function() remote:FireServer(t.humanoid, targetPart, 100) end)
                 pcall(function() remote:FireServer(weapon, targetPart, dir) end)
-                pcall(function() remote:FireServer("Hit", targetPart, t.humanoid) end)
-                pcall(function() remote:FireServer("Damage", t.humanoid, 9999) end)
-                pcall(function() remote:FireServer({Target = targetPart.Parent, Damage = 100}) end)
-                pcall(function() remote:FireServer(myRoot.Position, dir, targetPart, t.humanoid) end)
-                pcall(function() remote:FireServer(targetPart.Parent.Name, targetPart.Position, 100) end)
             end)
         end
     end
 end
 
--- 25. Custom System Attack - for games with custom inventory/hotbar
 local function customSystemAttack(t, targetPart, weapon, myRoot)
-    local dir = (targetPart.Position - myRoot.Position).Unit
-
-    -- Re-scan if we haven't found custom weapons yet
-    if #Settings.HotbarRemotes == 0 and #Settings.CustomWeapons == 0 then
-        scanCustomSystems()
-    end
-
-    -- Fire all custom combat system remotes
+    if #Settings.HotbarRemotes == 0 and #Settings.CustomWeapons == 0 then scanCustomSystems() end
     simulateCustomAttack(t, targetPart, myRoot)
-
-    -- Also fire custom framework remotes with combat signatures
     for _, remote in ipairs(Settings.CustomCombatRemotes) do
         task.spawn(function()
             if remote:IsA("RemoteEvent") then
                 pcall(function() remote:FireServer() end)
                 pcall(function() remote:FireServer("Attack") end)
                 pcall(function() remote:FireServer(targetPart.Position) end)
-                pcall(function() remote:FireServer(targetPart, dir) end)
-                pcall(function() remote:FireServer(t.humanoid, 100) end)
-                pcall(function() remote:FireServer("M1", targetPart.Position) end)
-                pcall(function() remote:FireServer({Action = "Attack", Target = targetPart.Parent, Position = targetPart.Position}) end)
-                pcall(function() remote:FireServer(CFrame.lookAt(myRoot.Position, targetPart.Position)) end)
-                pcall(function() remote:FireServer(targetPart.Parent.Name, targetPart.Position, dir) end)
-            elseif remote:IsA("RemoteFunction") then
-                pcall(function() remote:InvokeServer() end)
-                pcall(function() remote:InvokeServer("Attack") end)
-                pcall(function() remote:InvokeServer(targetPart.Position, dir) end)
-                pcall(function() remote:InvokeServer(t.humanoid, targetPart) end)
             end
         end)
     end
-
-    -- Also try touch if available (works on any game)
     if hasFireTouchInterest then
-        -- Touch with all character parts against target
         local char = LocalPlayer.Character
         if char then
             for _, part in ipairs(char:GetChildren()) do
                 if part:IsA("BasePart") then
-                    pcall(function()
-                        firetouchinterest(part, targetPart, 0)
-                        task.wait()
-                        firetouchinterest(part, targetPart, 1)
-                    end)
-                end
-            end
-        end
-        -- Touch all target parts
-        if t.character then
-            for _, part in ipairs(t.character:GetChildren()) do
-                if part:IsA("BasePart") then
-                    pcall(function()
-                        firetouchinterest(myRoot, part, 0)
-                        task.wait()
-                        firetouchinterest(myRoot, part, 1)
-                    end)
+                    pcall(function() firetouchinterest(part, targetPart, 0); task.wait(); firetouchinterest(part, targetPart, 1) end)
                 end
             end
         end
     end
-
-    -- Fire standard remotes too as fallback
     fireMethod(t, targetPart, weapon, myRoot)
 end
 
--- Auto mode: smart method selection
 local function autoAttack(t, targetPart, weapon, myRoot)
-    -- 1. Try detected method first
     if fireMethod(t, targetPart, weapon, myRoot) then return end
-    -- 2. Spy replay
     if spyReplayAttack(t, targetPart, weapon, myRoot) then return end
-    -- 3. Custom system (if no standard tool found)
-    if not weapon and Settings.HasCustomInventory then
-        simulateCustomAttack(t, targetPart, myRoot)
-    end
-    -- 4. Touch damage
+    if not weapon and Settings.HasCustomInventory then simulateCustomAttack(t, targetPart, myRoot) end
     if hasFireTouchInterest then touchDamageAttack(t, targetPart, weapon, myRoot) end
-    -- 5. Tool activate
     if weapon then pcall(function() weapon:Activate() end) end
-    -- 6. Custom combat remotes (always try if no weapon)
-    if not weapon and #Settings.CustomCombatRemotes > 0 then
-        local dir = (targetPart.Position - myRoot.Position).Unit
-        for _, remote in ipairs(Settings.CustomCombatRemotes) do
-            if remote:IsA("RemoteEvent") then
-                pcall(function() remote:FireServer() end)
-                pcall(function() remote:FireServer(targetPart.Position, dir) end)
-            end
-        end
-    end
-    -- 7. Silent
     silentAttack(t, targetPart, myRoot)
-    -- 8. Client damage
     clientDamageAttack(t)
 end
 
@@ -3064,16 +1381,10 @@ end
 -- ============================================================
 local function sortTargets(targets)
     local p = Settings.TargetPriority
-    if p == "Closest" then
-        table.sort(targets, function(a, b) return a.distance < b.distance end)
-    elseif p == "LowestHP" then
-        table.sort(targets, function(a, b) return a.humanoid.Health < b.humanoid.Health end)
-    elseif p == "HighestHP" then
-        table.sort(targets, function(a, b) return a.humanoid.Health > b.humanoid.Health end)
-    elseif p == "Random" then
-        for i = #targets, 2, -1 do
-            local j = math.random(i); targets[i], targets[j] = targets[j], targets[i]
-        end
+    if p == "Closest" then table.sort(targets, function(a, b) return a.distance < b.distance end)
+    elseif p == "LowestHP" then table.sort(targets, function(a, b) return a.humanoid.Health < b.humanoid.Health end)
+    elseif p == "HighestHP" then table.sort(targets, function(a, b) return a.humanoid.Health > b.humanoid.Health end)
+    elseif p == "Random" then for i = #targets, 2, -1 do local j = math.random(i); targets[i], targets[j] = targets[j], targets[i] end
     end
     return targets
 end
@@ -3084,7 +1395,6 @@ end
 local function getNPCTargets(myRoot)
     local targets = {}
     if not Settings.TargetNPCs then return targets end
-
     for _, model in ipairs(Workspace:GetDescendants()) do
         if model:IsA("Model") and model ~= LocalPlayer.Character then
             local hum = model:FindFirstChildOfClass("Humanoid")
@@ -3094,11 +1404,7 @@ local function getNPCTargets(myRoot)
                 if not isPlayer then
                     local dist = (myRoot.Position - root.Position).Magnitude
                     if dist <= Settings.Radius and isVisible(root) then
-                        table.insert(targets, {
-                            player = nil, character = model,
-                            root = root, humanoid = hum, distance = dist,
-                            isNPC = true,
-                        })
+                        table.insert(targets, {player = nil, character = model, root = root, humanoid = hum, distance = dist, isNPC = true})
                     end
                 end
             end
@@ -3116,9 +1422,7 @@ local auraConn = RunService.Heartbeat:Connect(function()
     local spyCount = 0
     for _ in pairs(Settings.SpyRemotes) do spyCount = spyCount + 1 end
     if not Settings.DetectedMethod and #Settings.AllDamageRemotes == 0 and spyCount == 0 then
-        if tick() - Settings.LastAttack > 5 then
-            task.spawn(scanRemotes); Settings.LastAttack = tick()
-        end
+        if tick() - Settings.LastAttack > 5 then task.spawn(scanRemotes); Settings.LastAttack = tick() end
     end
 
     local now = tick()
@@ -3130,10 +1434,8 @@ local auraConn = RunService.Heartbeat:Connect(function()
 
     Settings.LastAttack = now
     local weapon = findWeapon()
-
     local targets = {}
 
-    -- Player targets
     if Settings.TargetPlayers then
         for _, plr in ipairs(Players:GetPlayers()) do
             if plr ~= LocalPlayer and plr.Character then
@@ -3144,11 +1446,7 @@ local auraConn = RunService.Heartbeat:Connect(function()
                     if not sameTeam then
                         local dist = (myRoot.Position - tRoot.Position).Magnitude
                         if dist <= Settings.Radius and isVisible(tRoot) then
-                            table.insert(targets, {
-                                player = plr, character = plr.Character,
-                                root = tRoot, humanoid = tHum, distance = dist,
-                                isNPC = false,
-                            })
+                            table.insert(targets, {player = plr, character = plr.Character, root = tRoot, humanoid = tHum, distance = dist, isNPC = false})
                         end
                     end
                 end
@@ -3156,10 +1454,7 @@ local auraConn = RunService.Heartbeat:Connect(function()
         end
     end
 
-    -- NPC/Mob targets
-    local npcTargets = getNPCTargets(myRoot)
-    for _, t in ipairs(npcTargets) do table.insert(targets, t) end
-
+    for _, t in ipairs(getNPCTargets(myRoot)) do table.insert(targets, t) end
     targets = sortTargets(targets)
 
     local attackCount = 0
@@ -3294,32 +1589,22 @@ local function CreateESP_Billboard(char)
     billboard.Parent = char:FindFirstChild("Head") or char
 
     local mf = Instance.new("Frame", billboard); mf.Size = UDim2.new(1,0,1,0); mf.BackgroundTransparency = 1
-
     local nl = Instance.new("TextLabel", mf); nl.Size = UDim2.new(1,0,0.2,0); nl.BackgroundTransparency = 1
     nl.TextColor3 = Color3.new(1,1,1); nl.TextStrokeTransparency = 0; nl.Font = Enum.Font.GothamBold; nl.TextSize = 14
-
-    for _, data in ipairs({
-        {UDim2.new(1,0,0,2), UDim2.new(0,0,0.2,0)}, {UDim2.new(1,0,0,2), UDim2.new(0,0,0.8,0)},
-        {UDim2.new(0,2,0.6,0), UDim2.new(0,0,0.2,0)}, {UDim2.new(0,2,0.6,0), UDim2.new(1,-2,0.2,0)},
-    }) do
-        local f = Instance.new("Frame", mf); f.Size = data[1]; f.Position = data[2]
-        f.BackgroundColor3 = Settings.ESPColor; f.BorderSizePixel = 0
-    end
-
-    local hbg = Instance.new("Frame", mf); hbg.Size = UDim2.new(0.05,0,0.6,0); hbg.Position = UDim2.new(-0.08,0,0.2,0)
-    hbg.BackgroundColor3 = Color3.new(0,0,0); hbg.BorderSizePixel = 0
-    local hb = Instance.new("Frame", hbg); hb.Size = UDim2.new(1,0,1,0); hb.BackgroundColor3 = Color3.new(0,1,0); hb.BorderSizePixel = 0
-
-    local dl = Instance.new("TextLabel", mf); dl.Size = UDim2.new(1,0,0.15,0); dl.Position = UDim2.new(0,0,0.85,0)
-    dl.BackgroundTransparency = 1; dl.TextColor3 = Color3.new(1,1,1); dl.TextStrokeTransparency = 0
-    dl.Font = Enum.Font.Gotham; dl.TextSize = 12
 
     local hl = Instance.new("Highlight", char); hl.Name = "ESPCham"; hl.FillTransparency = 0.5
     hl.OutlineTransparency = 0; hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
     hl.FillColor = Settings.ESPColor; hl.OutlineColor = Color3.new(1,1,1)
 
-    return {Billboard = billboard, NameLabel = nl, HealthBar = hb, DistLabel = dl, Highlight = hl,
-        Boxes = {mf:GetChildren()[2], mf:GetChildren()[3], mf:GetChildren()[4], mf:GetChildren()[5]}, Type = "Billboard"}
+    local dl = Instance.new("TextLabel", mf); dl.Size = UDim2.new(1,0,0.15,0); dl.Position = UDim2.new(0,0,0.85,0)
+    dl.BackgroundTransparency = 1; dl.TextColor3 = Color3.new(1,1,1); dl.TextStrokeTransparency = 0
+    dl.Font = Enum.Font.Gotham; dl.TextSize = 12
+
+    local hbg = Instance.new("Frame", mf); hbg.Size = UDim2.new(0.05,0,0.6,0); hbg.Position = UDim2.new(-0.08,0,0.2,0)
+    hbg.BackgroundColor3 = Color3.new(0,0,0); hbg.BorderSizePixel = 0
+    local hb = Instance.new("Frame", hbg); hb.Size = UDim2.new(1,0,1,0); hb.BackgroundColor3 = Color3.new(0,1,0); hb.BorderSizePixel = 0
+
+    return {Billboard = billboard, NameLabel = nl, HealthBar = hb, DistLabel = dl, Highlight = hl, Type = "Billboard"}
 end
 
 local function CreateESP(char)
@@ -3430,7 +1715,7 @@ local espConn = RunService.RenderStepped:Connect(function()
                                 local hl = Instance.new("Highlight"); hl.Name = "ESPCham"; hl.FillTransparency = 0.5; hl.OutlineTransparency = 0
                                 hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop; hl.Parent = char; esp.Highlight = hl
                             end
-                            esp.Highlight.FillColor = espColor; esp.Highlight.OutlineColor = Color3.new(1,1,1)
+                            esp.Highlight.FillColor = espColor
                         else if esp.Highlight then pcall(function() esp.Highlight:Destroy() end); esp.Highlight = nil end end
                     else
                         esp.Box.Visible = false; esp.BoxOutline.Visible = false; esp.HealthBar.Visible = false; esp.HealthBarOutline.Visible = false
@@ -3447,8 +1732,7 @@ local espConn = RunService.RenderStepped:Connect(function()
             elseif esp.Type == "Billboard" then
                 if shouldShow then
                     esp.Billboard.Enabled = true
-                    if Settings.ESPNames then esp.NameLabel.Text = plr and plr.Name or char.Name; esp.NameLabel.Visible = true
-                    else esp.NameLabel.Visible = false end
+                    if Settings.ESPNames then esp.NameLabel.Text = plr and plr.Name or char.Name; esp.NameLabel.Visible = true else esp.NameLabel.Visible = false end
                     if Settings.ESPHealth then
                         local hp = math.clamp(hum.Health/hum.MaxHealth, 0, 1)
                         esp.HealthBar.Size = UDim2.new(1, 0, hp, 0); esp.HealthBar.BackgroundColor3 = Color3.fromHSV(hp * 0.3, 1, 1)
@@ -3484,9 +1768,7 @@ local function resetHitboxes()
     for part, data in pairs(hitboxOriginals) do
         pcall(function()
             if part and part.Parent then
-                part.Size = data.size
-                part.Transparency = data.transparency
-                part.CanCollide = data.canCollide
+                part.Size = data.size; part.Transparency = data.transparency; part.CanCollide = data.canCollide
             end
         end)
     end
@@ -3496,14 +1778,12 @@ end
 local hitboxConn = RunService.Heartbeat:Connect(function()
     if not Settings.HitboxEnabled then
         if next(hitboxOriginals) then resetHitboxes() end
-        if hbStatusLabel then hbStatusLabel.Text = "Hitbox: OFF" end
         return
     end
 
     local targetSize = Vector3.new(Settings.HitboxX, Settings.HitboxY, Settings.HitboxZ)
     local trans = Settings.HitboxVisible and Settings.HitboxTransparency or 1
     local noCollide = not Settings.HitboxCanCollide
-    local count = 0
 
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= LocalPlayer and plr.Character then
@@ -3512,28 +1792,16 @@ local hitboxConn = RunService.Heartbeat:Connect(function()
                 for _, part in ipairs(plr.Character:GetChildren()) do
                     if part:IsA("BasePart") then
                         if not hitboxOriginals[part] then
-                            hitboxOriginals[part] = {
-                                size = part.Size,
-                                transparency = part.Transparency,
-                                canCollide = part.CanCollide,
-                            }
+                            hitboxOriginals[part] = {size = part.Size, transparency = part.Transparency, canCollide = part.CanCollide}
                         end
                         pcall(function()
-                            part.Size = targetSize
-                            part.Transparency = trans
+                            part.Size = targetSize; part.Transparency = trans
                             if noCollide then part.CanCollide = false end
                         end)
-                        count = count + 1
                     end
                 end
             end
         end
-    end
-
-    if hbStatusLabel then
-        hbStatusLabel.Text = "Hitbox: ON | " .. count .. " parts | " ..
-            Settings.HitboxX .. "x" .. Settings.HitboxY .. "x" .. Settings.HitboxZ
-        hbStatusLabel.TextColor3 = theme.Success
     end
 end)
 table.insert(Settings._Connections, hitboxConn)
@@ -3566,9 +1834,7 @@ local swordTiltAngle = 0
 
 local function createSwordModel(root)
     if swordModel and swordModel.Parent then return swordModel end
-
-    swordModel = Instance.new("Model")
-    swordModel.Name = "FlyingSword"
+    swordModel = Instance.new("Model"); swordModel.Name = "FlyingSword"
 
     local blade = Instance.new("Part")
     blade.Name = "Blade"; blade.Size = Vector3.new(0.3, 0.15, 6)
@@ -3602,8 +1868,7 @@ local function createSwordModel(root)
     pommel.CastShadow = false; pommel.Parent = swordModel
 
     swordGlow = Instance.new("PointLight")
-    swordGlow.Color = Color3.fromRGB(150, 180, 255); swordGlow.Brightness = 2
-    swordGlow.Range = 12; swordGlow.Parent = blade
+    swordGlow.Color = Color3.fromRGB(150, 180, 255); swordGlow.Brightness = 2; swordGlow.Range = 12; swordGlow.Parent = blade
 
     local att0 = Instance.new("Attachment"); att0.Position = Vector3.new(0, 0, -2.8); att0.Parent = blade
     local att1 = Instance.new("Attachment"); att1.Position = Vector3.new(0, 0, 2.8); att1.Parent = blade
@@ -3614,28 +1879,15 @@ local function createSwordModel(root)
         ColorSequenceKeypoint.new(0.5, Color3.fromRGB(140, 100, 255)),
         ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255))
     })
-    swordTrail.Transparency = NumberSequence.new({
-        NumberSequenceKeypoint.new(0, 0.2),
-        NumberSequenceKeypoint.new(0.5, 0.5),
-        NumberSequenceKeypoint.new(1, 1)
-    })
-    swordTrail.Lifetime = 0.8; swordTrail.MinLength = 0.1
-    swordTrail.WidthScale = NumberSequence.new(1); swordTrail.LightEmission = 0.8
-    swordTrail.Parent = blade
+    swordTrail.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 0.2), NumberSequenceKeypoint.new(0.5, 0.5), NumberSequenceKeypoint.new(1, 1)})
+    swordTrail.Lifetime = 0.8; swordTrail.MinLength = 0.1; swordTrail.LightEmission = 0.8; swordTrail.Parent = blade
 
     swordParticles = Instance.new("ParticleEmitter")
     swordParticles.Color = ColorSequence.new(Color3.fromRGB(180, 200, 255))
-    swordParticles.Size = NumberSequence.new({
-        NumberSequenceKeypoint.new(0, 0.3),
-        NumberSequenceKeypoint.new(1, 0)
-    })
-    swordParticles.Transparency = NumberSequence.new({
-        NumberSequenceKeypoint.new(0, 0.3),
-        NumberSequenceKeypoint.new(1, 1)
-    })
-    swordParticles.Lifetime = NumberRange.new(0.5, 1.2)
-    swordParticles.Rate = 30; swordParticles.Speed = NumberRange.new(1, 3)
-    swordParticles.SpreadAngle = Vector2.new(180, 180)
+    swordParticles.Size = NumberSequence.new({NumberSequenceKeypoint.new(0, 0.3), NumberSequenceKeypoint.new(1, 0)})
+    swordParticles.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 0.3), NumberSequenceKeypoint.new(1, 1)})
+    swordParticles.Lifetime = NumberRange.new(0.5, 1.2); swordParticles.Rate = 30
+    swordParticles.Speed = NumberRange.new(1, 3); swordParticles.SpreadAngle = Vector2.new(180, 180)
     swordParticles.LightEmission = 0.6; swordParticles.Parent = blade
 
     swordModel.Parent = Workspace
@@ -3658,35 +1910,19 @@ local function updateSwordPosition(root, velocity)
 
     local basePos = root.Position - Vector3.new(0, 3.2, 0)
     local speed = velocity.Magnitude
-
-    local targetTilt = 0
-    if speed > 5 then
-        targetTilt = math.clamp(speed / Settings.SwordFlySpeed * 25, 0, 25)
-    end
+    local targetTilt = speed > 5 and math.clamp(speed / Settings.SwordFlySpeed * 25, 0, 25) or 0
     swordTiltAngle = swordTiltAngle + (targetTilt - swordTiltAngle) * 0.1
 
-    local lookDir
-    if speed > 2 then
-        lookDir = velocity.Unit
-    else
-        lookDir = root.CFrame.LookVector
-    end
-
-    local swordCF = CFrame.lookAt(basePos, basePos + lookDir)
-        * CFrame.Angles(math.rad(swordTiltAngle), 0, 0)
+    local lookDir = speed > 2 and velocity.Unit or root.CFrame.LookVector
+    local swordCF = CFrame.lookAt(basePos, basePos + lookDir) * CFrame.Angles(math.rad(swordTiltAngle), 0, 0)
 
     blade.CFrame = swordCF
     if bladeEdge then bladeEdge.CFrame = swordCF end
     if guard then guard.CFrame = swordCF * CFrame.new(0, 0, -2.8) end
     if handle then handle.CFrame = swordCF * CFrame.new(0, 0, -3.8) end
     if pommel then pommel.CFrame = swordCF * CFrame.new(0, 0, -4.8) end
-
-    if swordGlow then
-        swordGlow.Brightness = 1.5 + math.sin(tick() * 3) * 0.5
-    end
-    if swordParticles then
-        swordParticles.Rate = speed > 10 and 60 or 20
-    end
+    if swordGlow then swordGlow.Brightness = 1.5 + math.sin(tick() * 3) * 0.5 end
+    if swordParticles then swordParticles.Rate = speed > 10 and 60 or 20 end
 end
 
 -- Mobile fly buttons
@@ -3694,60 +1930,32 @@ local flyUpHeld = false
 local flyDownHeld = false
 local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 
-local FlyButtonsFrame = Instance.new("Frame")
-FlyButtonsFrame.Size = UDim2.new(0, 60, 0, 130)
-FlyButtonsFrame.Position = UDim2.new(1, -75, 0.5, -65)
-FlyButtonsFrame.BackgroundTransparency = 1
-FlyButtonsFrame.Visible = false
-FlyButtonsFrame.ZIndex = 50
-FlyButtonsFrame.Parent = ScreenGui
+local FlyButtonsGui
+if isMobile then
+    FlyButtonsGui = Instance.new("ScreenGui")
+    FlyButtonsGui.Name = "FlyButtons"; FlyButtonsGui.ResetOnSpawn = false; FlyButtonsGui.Parent = CoreGui
 
-local flyUpBtn = Instance.new("TextButton")
-flyUpBtn.Size = UDim2.new(1, 0, 0, 58)
-flyUpBtn.Position = UDim2.new(0, 0, 0, 0)
-flyUpBtn.BackgroundColor3 = Color3.fromRGB(60, 160, 255)
-flyUpBtn.BackgroundTransparency = 0.3
-flyUpBtn.Text = "UP"
-flyUpBtn.TextColor3 = Color3.new(1, 1, 1)
-flyUpBtn.Font = Enum.Font.GothamBold
-flyUpBtn.TextSize = 14
-flyUpBtn.ZIndex = 51
-flyUpBtn.Parent = FlyButtonsFrame
-Instance.new("UICorner", flyUpBtn).CornerRadius = UDim.new(0, 10)
+    local frame = Instance.new("Frame", FlyButtonsGui)
+    frame.Size = UDim2.new(0, 55, 0, 120); frame.Position = UDim2.new(1, -65, 0.5, -60)
+    frame.BackgroundTransparency = 1; frame.Visible = false; frame.Name = "BtnFrame"
 
-local flyDownBtn = Instance.new("TextButton")
-flyDownBtn.Size = UDim2.new(1, 0, 0, 58)
-flyDownBtn.Position = UDim2.new(0, 0, 0, 68)
-flyDownBtn.BackgroundColor3 = Color3.fromRGB(255, 100, 60)
-flyDownBtn.BackgroundTransparency = 0.3
-flyDownBtn.Text = "DOWN"
-flyDownBtn.TextColor3 = Color3.new(1, 1, 1)
-flyDownBtn.Font = Enum.Font.GothamBold
-flyDownBtn.TextSize = 14
-flyDownBtn.ZIndex = 51
-flyDownBtn.Parent = FlyButtonsFrame
-Instance.new("UICorner", flyDownBtn).CornerRadius = UDim.new(0, 10)
+    local upBtn = Instance.new("TextButton", frame)
+    upBtn.Size = UDim2.new(1, 0, 0, 52); upBtn.Position = UDim2.new(0, 0, 0, 0)
+    upBtn.BackgroundColor3 = Color3.fromRGB(60, 160, 255); upBtn.BackgroundTransparency = 0.3
+    upBtn.Text = "UP"; upBtn.TextColor3 = Color3.new(1, 1, 1); upBtn.Font = Enum.Font.GothamBold; upBtn.TextSize = 13
+    Instance.new("UICorner", upBtn).CornerRadius = UDim.new(0, 10)
 
-flyUpBtn.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
-        flyUpHeld = true
-    end
-end)
-flyUpBtn.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
-        flyUpHeld = false
-    end
-end)
-flyDownBtn.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
-        flyDownHeld = true
-    end
-end)
-flyDownBtn.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
-        flyDownHeld = false
-    end
-end)
+    local downBtn = Instance.new("TextButton", frame)
+    downBtn.Size = UDim2.new(1, 0, 0, 52); downBtn.Position = UDim2.new(0, 0, 0, 62)
+    downBtn.BackgroundColor3 = Color3.fromRGB(255, 100, 60); downBtn.BackgroundTransparency = 0.3
+    downBtn.Text = "DOWN"; downBtn.TextColor3 = Color3.new(1, 1, 1); downBtn.Font = Enum.Font.GothamBold; downBtn.TextSize = 13
+    Instance.new("UICorner", downBtn).CornerRadius = UDim.new(0, 10)
+
+    upBtn.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.Touch then flyUpHeld = true end end)
+    upBtn.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.Touch then flyUpHeld = false end end)
+    downBtn.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.Touch then flyDownHeld = true end end)
+    downBtn.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.Touch then flyDownHeld = false end end)
+end
 
 local miscConn = RunService.Heartbeat:Connect(function()
     local char = LocalPlayer.Character
@@ -3758,6 +1966,7 @@ local miscConn = RunService.Heartbeat:Connect(function()
 
     if Settings.SpeedEnabled then hum.WalkSpeed = Settings.SpeedValue end
 
+    -- Tele Enemy
     if Settings.TeleEnemyEnabled and Settings.TeleEnemyPosition then
         local pos = Settings.TeleEnemyPosition
         local teleCount = 0
@@ -3781,16 +1990,19 @@ local miscConn = RunService.Heartbeat:Connect(function()
         for _, plr in ipairs(Players:GetPlayers()) do
             if plr ~= LocalPlayer and plr.Character then
                 local tRoot = plr.Character:FindFirstChild("HumanoidRootPart")
-                if tRoot and tRoot.Anchored then
-                    tRoot.Anchored = false
-                end
+                if tRoot and tRoot.Anchored then tRoot.Anchored = false end
             end
         end
     end
 
+    -- Mobile fly buttons visibility
     local isFlying = Settings.SwordFlyEnabled or Settings.FlyEnabled
-    FlyButtonsFrame.Visible = isFlying and isMobile
+    if FlyButtonsGui then
+        local btnFrame = FlyButtonsGui:FindFirstChild("BtnFrame")
+        if btnFrame then btnFrame.Visible = isFlying end
+    end
 
+    -- Sword Fly
     if Settings.SwordFlyEnabled then
         if not swordBV or not swordBV.Parent then
             swordBV = Instance.new("BodyVelocity"); swordBV.MaxForce = Vector3.new(math.huge, math.huge, math.huge); swordBV.Parent = root
@@ -3806,19 +2018,15 @@ local miscConn = RunService.Heartbeat:Connect(function()
         swordBV.Velocity = vel
         swordBG.CFrame = CFrame.lookAt(root.Position, root.Position + (vel.Magnitude > 1 and vel.Unit or root.CFrame.LookVector))
         updateSwordPosition(root, vel)
-
-        if hum:GetState() ~= Enum.HumanoidStateType.Physics then
-            hum:ChangeState(Enum.HumanoidStateType.Physics)
-        end
-        for _, part in ipairs(char:GetDescendants()) do
-            if part:IsA("BasePart") then part.CanCollide = false end
-        end
+        if hum:GetState() ~= Enum.HumanoidStateType.Physics then hum:ChangeState(Enum.HumanoidStateType.Physics) end
+        for _, part in ipairs(char:GetDescendants()) do if part:IsA("BasePart") then part.CanCollide = false end end
     else
         if swordBV and swordBV.Parent then swordBV:Destroy(); swordBV = nil end
         if swordBG and swordBG.Parent then swordBG:Destroy(); swordBG = nil end
         if swordModel and swordModel.Parent then destroySwordModel() end
     end
 
+    -- Normal Fly
     if Settings.FlyEnabled and not Settings.SwordFlyEnabled then
         if not flyBV or not flyBV.Parent then
             flyBV = Instance.new("BodyVelocity"); flyBV.MaxForce = Vector3.new(math.huge, math.huge, math.huge); flyBV.Parent = root
@@ -3841,9 +2049,7 @@ local miscConn = RunService.Heartbeat:Connect(function()
     end
 
     if Settings.NoClip then
-        for _, part in ipairs(char:GetDescendants()) do
-            if part:IsA("BasePart") then part.CanCollide = false end
-        end
+        for _, part in ipairs(char:GetDescendants()) do if part:IsA("BasePart") then part.CanCollide = false end end
     end
 end)
 table.insert(Settings._Connections, miscConn)
@@ -3863,9 +2069,16 @@ Players.PlayerRemoving:Connect(function(p) if p.Character and ESP_Cache[p.Charac
 -- ============================================================
 -- STARTUP
 -- ============================================================
-updateMiniIcon()
-showNotification("V10 Ultra loaded!", 3, theme.Success)
-showNotification("25 Aura modes | Hitbox | NPC", 4, theme.Info)
-showNotification("Drawing=" .. tostring(hasDrawing) .. " Touch=" .. tostring(hasFireTouchInterest) .. " GC=" .. tostring(hasGetGC), 5, theme.TextDim)
+Fluent:Notify({
+    Title = "Kill Aura V10 Ultra",
+    Content = "Loaded! 25 modes | ESP | Aimbot | Hitbox",
+    Duration = 5
+})
+Fluent:Notify({
+    Title = "Info",
+    Content = "Drawing=" .. tostring(hasDrawing) .. " Touch=" .. tostring(hasFireTouchInterest) .. " GC=" .. tostring(hasGetGC),
+    Duration = 5
+})
 
-log("V10 Ultra Universal loaded - 25 modes + Hitbox")
+SaveManager:LoadAutoloadConfig()
+log("V10 Ultra Fluent UI loaded - 25 modes")
