@@ -1540,6 +1540,7 @@ makeButton(MiscTab, {
 miscY = miscY + 40
 
 -- Dupe Item separator
+do
 local dupeSep = Instance.new("Frame")
 dupeSep.Size = UDim2.new(1, -20, 0, 2); dupeSep.Position = UDim2.new(0, 10, 0, miscY)
 dupeSep.BackgroundColor3 = theme.Warning; dupeSep.BorderSizePixel = 0; dupeSep.ZIndex = 6; dupeSep.Parent = MiscTab
@@ -1945,6 +1946,7 @@ local dupeEndSep = Instance.new("Frame")
 dupeEndSep.Size = UDim2.new(1, -20, 0, 2); dupeEndSep.Position = UDim2.new(0, 10, 0, miscY)
 dupeEndSep.BackgroundColor3 = theme.SurfaceLight; dupeEndSep.BorderSizePixel = 0; dupeEndSep.ZIndex = 6; dupeEndSep.Parent = MiscTab
 miscY = miscY + 10
+end -- end dupe block
 
 makeButton(MiscTab, {
     Size = UDim2.new(0.92, 0, 0, 32),
