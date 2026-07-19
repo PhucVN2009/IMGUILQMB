@@ -639,14 +639,16 @@ local function makeDropdown(parent, props)
         menuFrame.Visible = false
         for _, b in ipairs(buttons) do b.Visible = false end
         arrow.Text = "v"
+        local overlay = getDropdownOverlay()
+        if overlay then overlay.Visible = false end
     end
 
     local function openMenu()
         closeAllDropdowns(dropdown)
 
-        -- Position menu at button's absolute position, parented to ScreenGui
         local overlay = getDropdownOverlay()
         if overlay then
+            overlay.Visible = true
             menuFrame.Parent = overlay
         end
         local absPos = mainBtn.AbsolutePosition
@@ -705,6 +707,8 @@ _dropdownOverlay = Instance.new("Frame")
 _dropdownOverlay.Size = UDim2.new(1, 0, 1, 0)
 _dropdownOverlay.BackgroundTransparency = 1
 _dropdownOverlay.ZIndex = 199
+_dropdownOverlay.Active = false
+_dropdownOverlay.Visible = false
 _dropdownOverlay.Parent = ScreenGui
 _dropdownOverlay.Name = "DropdownOverlay"
 
