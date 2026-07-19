@@ -504,6 +504,13 @@ local function closeAllDropdowns(except)
     end
 end
 
+local _dropdownOverlay = nil
+
+local function getDropdownOverlay()
+    if _dropdownOverlay and _dropdownOverlay.Parent then return _dropdownOverlay end
+    return nil
+end
+
 local function makeDropdown(parent, props)
     local theme = getTheme()
     local container = Instance.new("Frame")
@@ -543,16 +550,15 @@ local function makeDropdown(parent, props)
     local totalHeight = optionHeight * #props.Options
     local menuHeight = math.min(totalHeight, optionHeight * maxVisible)
 
+    -- Menu popup lives in ScreenGui overlay so it's never clipped by ScrollingFrame
     local menuFrame = Instance.new("Frame")
-    menuFrame.Size = UDim2.new(1, 0, 0, 0)
-    menuFrame.Position = UDim2.new(0, 0, 0, (props.ButtonHeight or 26) + 2)
+    menuFrame.Size = UDim2.new(0, 0, 0, 0)
     menuFrame.BackgroundColor3 = theme.Surface
     menuFrame.BorderSizePixel = 0
     menuFrame.Visible = false
     menuFrame.ClipsDescendants = true
     menuFrame.Active = true
-    menuFrame.Parent = container
-    menuFrame.ZIndex = 50
+    menuFrame.ZIndex = 200
     Instance.new("UICorner", menuFrame).CornerRadius = UDim.new(0, 6)
     local menuStroke = Instance.new("UIStroke", menuFrame)
     menuStroke.Color = theme.Accent; menuStroke.Thickness = 1
@@ -568,12 +574,12 @@ local function makeDropdown(parent, props)
         scrollFrame.CanvasSize = UDim2.new(0, 0, 0, totalHeight)
         scrollFrame.ScrollingEnabled = true
         scrollFrame.Parent = menuFrame
-        scrollFrame.ZIndex = 51
+        scrollFrame.ZIndex = 201
         contentFrame = Instance.new("Frame")
         contentFrame.Size = UDim2.new(1, 0, 0, totalHeight)
         contentFrame.BackgroundTransparency = 1
         contentFrame.Parent = scrollFrame
-        contentFrame.ZIndex = 51
+        contentFrame.ZIndex = 201
     else
         contentFrame = menuFrame
     end
@@ -597,7 +603,7 @@ local function makeDropdown(parent, props)
         btn.TextXAlignment = Enum.TextXAlignment.Left
         btn.Visible = false
         btn.Parent = contentFrame
-        btn.ZIndex = 52
+        btn.ZIndex = 202
         Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 4)
 
         local lastBtnClick = 0
@@ -610,7 +616,6 @@ local function makeDropdown(parent, props)
             for _, b in ipairs(buttons) do b.BackgroundColor3 = theme.Surface end
             btn.BackgroundColor3 = theme.Accent
             menuOpen = false
-            menuFrame.Size = UDim2.new(1, 0, 0, 0)
             menuFrame.Visible = false
             for _, b in ipairs(buttons) do b.Visible = false end
             arrow.Text = "v"
@@ -629,7 +634,6 @@ local function makeDropdown(parent, props)
     local function closeMenu()
         if not menuOpen then return end
         menuOpen = false
-        menuFrame.Size = UDim2.new(1, 0, 0, 0)
         menuFrame.Visible = false
         for _, b in ipairs(buttons) do b.Visible = false end
         arrow.Text = "v"
@@ -637,9 +641,19 @@ local function makeDropdown(parent, props)
 
     local function openMenu()
         closeAllDropdowns(dropdown)
+
+        -- Position menu at button's absolute position, parented to ScreenGui
+        local overlay = getDropdownOverlay()
+        if overlay then
+            menuFrame.Parent = overlay
+        end
+        local absPos = mainBtn.AbsolutePosition
+        local absSize = mainBtn.AbsoluteSize
+        menuFrame.Position = UDim2.new(0, absPos.X, 0, absPos.Y + absSize.Y + 2)
+        menuFrame.Size = UDim2.new(0, absSize.X, 0, menuHeight)
+
         menuOpen = true
         menuFrame.Visible = true
-        menuFrame.Size = UDim2.new(1, 0, 0, menuHeight)
         for _, b in ipairs(buttons) do b.Visible = true end
         arrow.Text = "^"
     end
@@ -680,10 +694,17 @@ local theme = getTheme()
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "KillAuraV10"
 ScreenGui.ResetOnSpawn = false
-ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
 ScreenGui.IgnoreGuiInset = true
 ScreenGui.DisplayOrder = 10
 ScreenGui.Parent = CoreGui
+
+_dropdownOverlay = Instance.new("Frame")
+_dropdownOverlay.Size = UDim2.new(1, 0, 1, 0)
+_dropdownOverlay.BackgroundTransparency = 1
+_dropdownOverlay.ZIndex = 199
+_dropdownOverlay.Parent = ScreenGui
+_dropdownOverlay.Name = "DropdownOverlay"
 
 NotificationContainer = Instance.new("Frame")
 NotificationContainer.Size = UDim2.new(0, 200, 0, 300)
@@ -779,89 +800,92 @@ ContentArea.ScrollBarThickness = 3
 ContentArea.ScrollBarImageColor3 = theme.Accent
 ContentArea.CanvasSize = UDim2.new(0, 0, 0, 0)
 ContentArea.ZIndex = 6; ContentArea.Parent = MainFrame
+ContentArea.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch or
+       input.UserInputType == Enum.UserInputType.MouseButton1 then
+        closeAllDropdowns()
+    end
+end)
 
 -- ============================================================
--- TAB: KILL AURA (expanded)
+-- TAB: KILL AURA
 -- ============================================================
 local KillAuraTab = Instance.new("Frame")
-KillAuraTab.Size = UDim2.new(1, 0, 0, 700)
+KillAuraTab.Size = UDim2.new(1, 0, 0, 900)
 KillAuraTab.BackgroundTransparency = 1
 KillAuraTab.Visible = true; KillAuraTab.ZIndex = 6; KillAuraTab.Parent = ContentArea
 tabFrames["KillAura"] = KillAuraTab
 
-local StatusLabel = Instance.new("TextLabel")
-StatusLabel.Size = UDim2.new(1, -20, 0, 14)
-StatusLabel.Position = UDim2.new(0, 10, 0, 4)
-StatusLabel.BackgroundTransparency = 1
-StatusLabel.Text = "Status: Initializing..."
-StatusLabel.TextColor3 = theme.TextDim
-StatusLabel.Font = Enum.Font.Gotham
-StatusLabel.TextSize = 10
-StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
-StatusLabel.ZIndex = 6; StatusLabel.Parent = KillAuraTab
+local auraY = 4
 
-local GameTypeLabel = Instance.new("TextLabel")
-GameTypeLabel.Size = UDim2.new(1, -20, 0, 14)
-GameTypeLabel.Position = UDim2.new(0, 10, 0, 18)
-GameTypeLabel.BackgroundTransparency = 1
-GameTypeLabel.Text = "Game: Detecting..."
-GameTypeLabel.TextColor3 = theme.Info
-GameTypeLabel.Font = Enum.Font.Gotham
-GameTypeLabel.TextSize = 9
-GameTypeLabel.TextXAlignment = Enum.TextXAlignment.Left
-GameTypeLabel.ZIndex = 6; GameTypeLabel.Parent = KillAuraTab
-
-local SpyStatusLabel = Instance.new("TextLabel")
-SpyStatusLabel.Size = UDim2.new(1, -20, 0, 14)
-SpyStatusLabel.Position = UDim2.new(0, 10, 0, 32)
-SpyStatusLabel.BackgroundTransparency = 1
-SpyStatusLabel.Text = "Spy: 0 | Scan: 0 | Touch: 0"
-SpyStatusLabel.TextColor3 = theme.Warning
-SpyStatusLabel.Font = Enum.Font.Gotham
-SpyStatusLabel.TextSize = 9
-SpyStatusLabel.TextXAlignment = Enum.TextXAlignment.Left
-SpyStatusLabel.ZIndex = 6; SpyStatusLabel.Parent = KillAuraTab
+-- ======= SECTION: KILL AURA CONTROLS =======
+local auraHeader = Instance.new("TextLabel")
+auraHeader.Size = UDim2.new(1, -20, 0, 16)
+auraHeader.Position = UDim2.new(0, 10, 0, auraY)
+auraHeader.BackgroundTransparency = 1; auraHeader.Text = "-- Kill Aura --"
+auraHeader.TextColor3 = theme.AccentLight; auraHeader.Font = Enum.Font.GothamBold
+auraHeader.TextSize = 12; auraHeader.TextXAlignment = Enum.TextXAlignment.Center
+auraHeader.ZIndex = 6; auraHeader.Parent = KillAuraTab
+auraY = auraY + 20
 
 local KillAuraBtn
 KillAuraBtn = makeButton(KillAuraTab, {
-    Size = UDim2.new(0.55, -5, 0, 36),
-    Position = UDim2.new(0.04, 0, 0, 50),
+    Size = UDim2.new(0.92, 0, 0, 36),
+    Position = UDim2.new(0.04, 0, 0, auraY),
     Color = theme.Danger,
-    Text = "Aura: OFF", TextSize = 13, ZIndex = 6,
+    Text = "KILL AURA: OFF", TextSize = 14, ZIndex = 6,
     Callback = function()
         Settings.Enabled = not Settings.Enabled
         if Settings.Enabled then
-            KillAuraBtn.Text = "Aura: ON"
+            KillAuraBtn.Text = "KILL AURA: ON"
             KillAuraBtn.BackgroundColor3 = theme.Success
             showNotification("Kill Aura ON - " .. Settings.AuraMode, 2, theme.Success)
         else
-            KillAuraBtn.Text = "Aura: OFF"
+            KillAuraBtn.Text = "KILL AURA: OFF"
             KillAuraBtn.BackgroundColor3 = theme.Danger
             showNotification("Kill Aura OFF", 2, theme.Danger)
         end
     end
 })
+auraY = auraY + 42
 
-local RescanBtn = makeButton(KillAuraTab, {
-    Size = UDim2.new(0.35, 0, 0, 36),
-    Position = UDim2.new(0.61, 0, 0, 50),
-    Color = theme.SurfaceLight,
-    Text = "Rescan", TextSize = 11, ZIndex = 6,
-    Callback = function()
-        scanRemotes()
-        showNotification("Deep scan complete", 2, theme.Info)
-    end
+-- Toggles FIRST (before dropdowns so dropdown opens over empty space below)
+local wallCheckToggle = makeToggle(KillAuraTab, {
+    Position = UDim2.new(0, 10, 0, auraY), Text = "Wall Check",
+    Default = Settings.WallCheck, ZIndex = 6,
+    OnChanged = function(v) Settings.WallCheck = v end,
 })
+auraY = auraY + 28
 
-local auraY = 96
+local autoEquipToggle = makeToggle(KillAuraTab, {
+    Position = UDim2.new(0, 10, 0, auraY), Text = "Auto Equip Weapon",
+    Default = Settings.AutoWeaponEquip, ZIndex = 6,
+    OnChanged = function(v) Settings.AutoWeaponEquip = v end,
+})
+auraY = auraY + 32
 
+local targetPlayersToggle = makeToggle(KillAuraTab, {
+    Position = UDim2.new(0, 10, 0, auraY), Text = "Target Players",
+    Default = Settings.TargetPlayers, ZIndex = 6,
+    OnChanged = function(v) Settings.TargetPlayers = v end,
+})
+auraY = auraY + 28
+
+local targetNPCsToggle = makeToggle(KillAuraTab, {
+    Position = UDim2.new(0, 10, 0, auraY), Text = "Target NPCs/Mobs",
+    Default = Settings.TargetNPCs, ZIndex = 6,
+    OnChanged = function(v) Settings.TargetNPCs = v end,
+})
+auraY = auraY + 32
+
+-- Sliders
 local radiusSlider = makeSlider(KillAuraTab, {
     Position = UDim2.new(0, 10, 0, auraY),
     Text = "Radius", Min = 10, Max = 2000, Default = Settings.Radius, Step = 5,
     Format = function(v) return math.floor(v) .. " studs" end,
     ZIndex = 6, OnChanged = function(v) Settings.Radius = math.floor(v) end,
 })
-auraY = auraY + 50
+auraY = auraY + 46
 
 local delaySlider = makeSlider(KillAuraTab, {
     Position = UDim2.new(0, 10, 0, auraY),
@@ -870,7 +894,7 @@ local delaySlider = makeSlider(KillAuraTab, {
     Format = function(v) return string.format("%.2fs", v) end,
     ZIndex = 6, OnChanged = function(v) Settings.Delay = math.floor(v * 100) / 100 end,
 })
-auraY = auraY + 50
+auraY = auraY + 46
 
 local maxTargetSlider = makeSlider(KillAuraTab, {
     Position = UDim2.new(0, 10, 0, auraY),
@@ -878,9 +902,9 @@ local maxTargetSlider = makeSlider(KillAuraTab, {
     FillColor = theme.Warning,
     ZIndex = 6, OnChanged = function(v) Settings.MaxTargets = math.floor(v) end,
 })
-auraY = auraY + 54
+auraY = auraY + 50
 
--- Target Part dropdown
+-- Dropdowns at bottom (opens downward over empty space in scroll area)
 local partLabel = Instance.new("TextLabel")
 partLabel.Size = UDim2.new(1, -20, 0, 14)
 partLabel.Position = UDim2.new(0, 10, 0, auraY)
@@ -899,7 +923,6 @@ local PartDropdown = makeDropdown(KillAuraTab, {
 })
 auraY = auraY + 34
 
--- Priority dropdown
 local priorityLabel = Instance.new("TextLabel")
 priorityLabel.Size = UDim2.new(1, -20, 0, 14)
 priorityLabel.Position = UDim2.new(0, 10, 0, auraY)
@@ -918,7 +941,6 @@ local PriorityDropdown = makeDropdown(KillAuraTab, {
 })
 auraY = auraY + 34
 
--- AURA MODE DROPDOWN - 24 MODES
 local modeLabel = Instance.new("TextLabel")
 modeLabel.Size = UDim2.new(1, -20, 0, 14)
 modeLabel.Position = UDim2.new(0, 10, 0, auraY)
@@ -966,36 +988,71 @@ local AuraModeDropdown = makeDropdown(KillAuraTab, {
         showNotification("Mode: " .. v, 2, theme.Warning)
     end,
 })
-auraY = auraY + 36
+auraY = auraY + 40
 
--- Toggles
-local wallCheckToggle = makeToggle(KillAuraTab, {
-    Position = UDim2.new(0, 10, 0, auraY), Text = "Wall Check",
-    Default = Settings.WallCheck, ZIndex = 6,
-    OnChanged = function(v) Settings.WallCheck = v end,
-})
-auraY = auraY + 32
+-- ======= SECTION: AUTO SCAN =======
+local scanHeader = Instance.new("Frame")
+scanHeader.Size = UDim2.new(1, -20, 0, 2)
+scanHeader.Position = UDim2.new(0, 10, 0, auraY)
+scanHeader.BackgroundColor3 = theme.SurfaceLight
+scanHeader.BorderSizePixel = 0; scanHeader.ZIndex = 6; scanHeader.Parent = KillAuraTab
+auraY = auraY + 6
 
-local autoEquipToggle = makeToggle(KillAuraTab, {
-    Position = UDim2.new(0, 10, 0, auraY), Text = "Auto Equip Weapon",
-    Default = Settings.AutoWeaponEquip, ZIndex = 6,
-    OnChanged = function(v) Settings.AutoWeaponEquip = v end,
-})
-auraY = auraY + 32
+local scanTitle = Instance.new("TextLabel")
+scanTitle.Size = UDim2.new(1, -20, 0, 16)
+scanTitle.Position = UDim2.new(0, 10, 0, auraY)
+scanTitle.BackgroundTransparency = 1; scanTitle.Text = "-- Auto Scan --"
+scanTitle.TextColor3 = theme.AccentLight; scanTitle.Font = Enum.Font.GothamBold
+scanTitle.TextSize = 12; scanTitle.TextXAlignment = Enum.TextXAlignment.Center
+scanTitle.ZIndex = 6; scanTitle.Parent = KillAuraTab
+auraY = auraY + 20
 
-local targetPlayersToggle = makeToggle(KillAuraTab, {
-    Position = UDim2.new(0, 10, 0, auraY), Text = "Target Players",
-    Default = Settings.TargetPlayers, ZIndex = 6,
-    OnChanged = function(v) Settings.TargetPlayers = v end,
-})
-auraY = auraY + 32
+local StatusLabel = Instance.new("TextLabel")
+StatusLabel.Size = UDim2.new(1, -20, 0, 14)
+StatusLabel.Position = UDim2.new(0, 10, 0, auraY)
+StatusLabel.BackgroundTransparency = 1
+StatusLabel.Text = "Status: Initializing..."
+StatusLabel.TextColor3 = theme.TextDim
+StatusLabel.Font = Enum.Font.Gotham
+StatusLabel.TextSize = 10
+StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
+StatusLabel.ZIndex = 6; StatusLabel.Parent = KillAuraTab
+auraY = auraY + 15
 
-local targetNPCsToggle = makeToggle(KillAuraTab, {
-    Position = UDim2.new(0, 10, 0, auraY), Text = "Target NPCs/Mobs",
-    Default = Settings.TargetNPCs, ZIndex = 6,
-    OnChanged = function(v) Settings.TargetNPCs = v end,
+local GameTypeLabel = Instance.new("TextLabel")
+GameTypeLabel.Size = UDim2.new(1, -20, 0, 14)
+GameTypeLabel.Position = UDim2.new(0, 10, 0, auraY)
+GameTypeLabel.BackgroundTransparency = 1
+GameTypeLabel.Text = "Game: Detecting..."
+GameTypeLabel.TextColor3 = theme.Info
+GameTypeLabel.Font = Enum.Font.Gotham
+GameTypeLabel.TextSize = 9
+GameTypeLabel.TextXAlignment = Enum.TextXAlignment.Left
+GameTypeLabel.ZIndex = 6; GameTypeLabel.Parent = KillAuraTab
+auraY = auraY + 15
+
+local SpyStatusLabel = Instance.new("TextLabel")
+SpyStatusLabel.Size = UDim2.new(1, -20, 0, 14)
+SpyStatusLabel.Position = UDim2.new(0, 10, 0, auraY)
+SpyStatusLabel.BackgroundTransparency = 1
+SpyStatusLabel.Text = "Spy: 0 | Scan: 0"
+SpyStatusLabel.TextColor3 = theme.Warning
+SpyStatusLabel.Font = Enum.Font.Gotham
+SpyStatusLabel.TextSize = 9
+SpyStatusLabel.TextXAlignment = Enum.TextXAlignment.Left
+SpyStatusLabel.ZIndex = 6; SpyStatusLabel.Parent = KillAuraTab
+auraY = auraY + 18
+
+local RescanBtn = makeButton(KillAuraTab, {
+    Size = UDim2.new(0.92, 0, 0, 32),
+    Position = UDim2.new(0.04, 0, 0, auraY),
+    Color = theme.SurfaceLight,
+    Text = "Rescan Remotes", TextSize = 11, ZIndex = 6,
+    Callback = function()
+        task.spawn(function() scanRemotes(); showNotification("Scan complete", 2, theme.Info) end)
+    end
 })
-auraY = auraY + 36
+auraY = auraY + 38
 
 KillAuraTab.Size = UDim2.new(1, 0, 0, auraY + 10)
 
@@ -1148,8 +1205,8 @@ local HitboxBtn = makeButton(HitboxTab, {
     Color = theme.Danger, Text = "HITBOX: OFF", TextSize = 14, ZIndex = 6,
     Callback = function()
         Settings.HitboxEnabled = not Settings.HitboxEnabled
-        HitboxBtn.btn.Text = Settings.HitboxEnabled and "HITBOX: ON" or "HITBOX: OFF"
-        HitboxBtn.btn.BackgroundColor3 = Settings.HitboxEnabled and theme.Success or theme.Danger
+        HitboxBtn.Text = Settings.HitboxEnabled and "HITBOX: ON" or "HITBOX: OFF"
+        HitboxBtn.BackgroundColor3 = Settings.HitboxEnabled and theme.Success or theme.Danger
         showNotification("Hitbox " .. (Settings.HitboxEnabled and "ON" or "OFF"), 2, Settings.HitboxEnabled and theme.Success or theme.Danger)
     end
 })
