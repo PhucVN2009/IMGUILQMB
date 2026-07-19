@@ -70,6 +70,7 @@ local Settings = {
     TeleEnemyEnabled = false,
     TeleEnemyDistance = 5,
     TeleEnemyPosition = nil,
+    TeleAutoKill = true,
 
     -- Aimbot
     AimbotEnabled = false,
@@ -895,6 +896,16 @@ makeButton(KillAuraTab, {
     end
 })
 auraY = auraY + 28
+
+makeToggle(KillAuraTab, {
+    Position = UDim2.new(0, 10, 0, auraY), Text = "Auto Kill (All Weapons)",
+    Default = Settings.TeleAutoKill, ZIndex = 6,
+    OnChanged = function(v)
+        Settings.TeleAutoKill = v
+        showNotification("Auto Kill " .. (v and "ON" or "OFF"), 2, v and theme.Success or theme.TextDim)
+    end,
+})
+auraY = auraY + 30
 
 -- Toggles FIRST (before dropdowns so dropdown opens over empty space below)
 local wallCheckToggle = makeToggle(KillAuraTab, {
@@ -3761,6 +3772,7 @@ local miscConn = RunService.Heartbeat:Connect(function()
     if Settings.TeleEnemyEnabled and Settings.TeleEnemyPosition then
         local pos = Settings.TeleEnemyPosition
         local teleCount = 0
+        local teleTargets = {}
         for _, plr in ipairs(Players:GetPlayers()) do
             if plr ~= LocalPlayer and plr.Character then
                 local tRoot = plr.Character:FindFirstChild("HumanoidRootPart")
@@ -3773,6 +3785,48 @@ local miscConn = RunService.Heartbeat:Connect(function()
                         tRoot.CFrame = CFrame.new(pos + offset)
                         tRoot.Anchored = true
                         pcall(function() tHum.WalkSpeed = 0; tHum.JumpPower = 0 end)
+                        table.insert(teleTargets, {root = tRoot, hum = tHum, char = plr.Character})
+                    end
+                end
+            end
+        end
+
+        if Settings.TeleAutoKill and #teleTargets > 0 then
+            local myChar = LocalPlayer.Character
+            local weapon = myChar and myChar:FindFirstChildOfClass("Tool")
+            local weaponHandle = weapon and (weapon:FindFirstChild("Handle") or weapon:FindFirstChildWhichIsA("BasePart"))
+
+            for _, t in ipairs(teleTargets) do
+                if hasFireTouchInterest and weaponHandle then
+                    pcall(function()
+                        firetouchinterest(weaponHandle, t.root, 0)
+                        task.defer(function() pcall(firetouchinterest, weaponHandle, t.root, 1) end)
+                    end)
+                    local tHead = t.char:FindFirstChild("Head")
+                    if tHead then
+                        pcall(function()
+                            firetouchinterest(weaponHandle, tHead, 0)
+                            task.defer(function() pcall(firetouchinterest, weaponHandle, tHead, 1) end)
+                        end)
+                    end
+                end
+
+                if hasFireTouchInterest and root then
+                    pcall(function()
+                        firetouchinterest(root, t.root, 0)
+                        task.defer(function() pcall(firetouchinterest, root, t.root, 1) end)
+                    end)
+                end
+            end
+
+            if weapon then
+                pcall(function() weapon:Activate() end)
+            end
+
+            if #Settings.AllDamageRemotes > 0 then
+                for _, t in ipairs(teleTargets) do
+                    for _, remote in ipairs(Settings.AllDamageRemotes) do
+                        pcall(function() remote:FireServer(t.char, t.root, t.root.Position) end)
                     end
                 end
             end
