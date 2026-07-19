@@ -66,16 +66,10 @@ local Settings = {
     CustomCombatRemotes = {},
     HasCustomInventory = false,
 
-    -- Damage Hack
-    DamageHackEnabled = false,
-    DamageMultiplier = 5,
-
     -- Tele Enemy
     TeleEnemyEnabled = false,
-    TeleEnemyDistance = 4,
+    TeleEnemyDistance = 5,
     TeleEnemyPosition = nil,
-    TeleAutoKill = true,
-    TeleFixedMode = false,
 
     -- Aimbot
     AimbotEnabled = false,
@@ -861,55 +855,21 @@ KillAuraBtn = makeButton(KillAuraTab, {
 })
 auraY = auraY + 42
 
-makeToggle(KillAuraTab, {
-    Position = UDim2.new(0, 10, 0, auraY), Text = "Hack Damage (x Gun)",
-    Default = Settings.DamageHackEnabled, ZIndex = 6,
-    OnChanged = function(v)
-        Settings.DamageHackEnabled = v
-        showNotification("Damage Hack " .. (v and "ON x" .. Settings.DamageMultiplier or "OFF"), 2, v and theme.Success or theme.TextDim)
-    end,
-})
-auraY = auraY + 28
-
-makeSlider(KillAuraTab, {
-    Position = UDim2.new(0, 10, 0, auraY),
-    Text = "Damage x", Min = 2, Max = 50, Default = Settings.DamageMultiplier, Step = 1,
-    FillColor = theme.Danger,
-    Format = function(v) return "x" .. math.floor(v) end,
-    ZIndex = 6, OnChanged = function(v) Settings.DamageMultiplier = math.floor(v) end,
-})
-auraY = auraY + 46
-
 local TeleEnemyBtn
 TeleEnemyBtn = makeToggle(KillAuraTab, {
-    Position = UDim2.new(0, 10, 0, auraY), Text = "Tele Enemy",
+    Position = UDim2.new(0, 10, 0, auraY), Text = "Tele Enemy (Fixed Pos)",
     Default = Settings.TeleEnemyEnabled, ZIndex = 6,
     OnChanged = function(v)
         Settings.TeleEnemyEnabled = v
+        if v and not Settings.TeleEnemyPosition then
+            showNotification("Chua luu toa do! Bam Save Position truoc", 3, theme.Warning)
+            Settings.TeleEnemyEnabled = false
+            return
+        end
         showNotification("Tele Enemy " .. (v and "ON" or "OFF"), 2, v and theme.Success or theme.TextDim)
     end,
 })
 auraY = auraY + 28
-
-makeToggle(KillAuraTab, {
-    Position = UDim2.new(0, 10, 0, auraY), Text = "Auto Kill (All Weapons)",
-    Default = Settings.TeleAutoKill, ZIndex = 6,
-    OnChanged = function(v)
-        Settings.TeleAutoKill = v
-        showNotification("Auto Kill " .. (v and "ON" or "OFF"), 2, v and theme.Success or theme.TextDim)
-    end,
-})
-auraY = auraY + 28
-
-makeToggle(KillAuraTab, {
-    Position = UDim2.new(0, 10, 0, auraY), Text = "Fixed Pos Mode",
-    Default = Settings.TeleFixedMode, ZIndex = 6,
-    OnChanged = function(v)
-        Settings.TeleFixedMode = v
-        showNotification(v and "Mode: Fixed Pos" or "Mode: Follow (All Weapons)", 2, theme.Info)
-    end,
-})
-auraY = auraY + 26
 
 local telePosLabel = Instance.new("TextLabel")
 telePosLabel.Size = UDim2.new(1, -80, 0, 14)
@@ -934,7 +894,7 @@ makeButton(KillAuraTab, {
         end
     end
 })
-auraY = auraY + 30
+auraY = auraY + 28
 
 -- Toggles FIRST (before dropdowns so dropdown opens over empty space below)
 local wallCheckToggle = makeToggle(KillAuraTab, {
@@ -3148,53 +3108,6 @@ local function getNPCTargets(myRoot)
 end
 
 -- ============================================================
--- DAMAGE HACK (hookmetamethod - multiply gun damage)
--- ============================================================
-local damageHookActive = false
-if hasHookMeta then
-    local oldNamecall
-    oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
-        local method = getnamecallmethod()
-        if Settings.DamageHackEnabled and (method == "FireServer" or method == "InvokeServer") then
-            if self:IsA("RemoteEvent") or self:IsA("RemoteFunction") then
-                local name = self.Name:lower()
-                local isDamage = name:find("damage") or name:find("hit") or name:find("attack")
-                    or name:find("shoot") or name:find("fire") or name:find("bullet")
-                    or name:find("weapon") or name:find("gun") or name:find("hurt")
-                    or name:find("combat") or name:find("swing") or name:find("slash")
-
-                if not isDamage then
-                    for _, r in ipairs(Settings.AllDamageRemotes) do
-                        if r == self then isDamage = true; break end
-                    end
-                end
-                for rName, _ in pairs(Settings.SpyRemotes) do
-                    if self.Name == rName then isDamage = true; break end
-                end
-
-                if isDamage then
-                    local args = {...}
-                    task.spawn(function()
-                        for i = 1, Settings.DamageMultiplier - 1 do
-                            pcall(function()
-                                if method == "FireServer" then
-                                    self:FireServer(unpack(args))
-                                else
-                                    self:InvokeServer(unpack(args))
-                                end
-                            end)
-                        end
-                    end)
-                end
-            end
-        end
-        return oldNamecall(self, ...)
-    end))
-    damageHookActive = true
-    log("Damage hack hook installed")
-end
-
--- ============================================================
 -- KILL AURA MAIN LOOP
 -- ============================================================
 local auraConn = RunService.Heartbeat:Connect(function()
@@ -3845,10 +3758,9 @@ local miscConn = RunService.Heartbeat:Connect(function()
 
     if Settings.SpeedEnabled then hum.WalkSpeed = Settings.SpeedValue end
 
-    if Settings.TeleEnemyEnabled then
-        local look = root.CFrame.LookVector
+    if Settings.TeleEnemyEnabled and Settings.TeleEnemyPosition then
+        local pos = Settings.TeleEnemyPosition
         local teleCount = 0
-        local teleTargets = {}
         for _, plr in ipairs(Players:GetPlayers()) do
             if plr ~= LocalPlayer and plr.Character then
                 local tRoot = plr.Character:FindFirstChild("HumanoidRootPart")
@@ -3857,85 +3769,11 @@ local miscConn = RunService.Heartbeat:Connect(function()
                     local sameTeam = LocalPlayer.Team and plr.Team and LocalPlayer.Team == plr.Team
                     if not sameTeam then
                         teleCount = teleCount + 1
-                        local targetCF
-                        if Settings.TeleFixedMode and Settings.TeleEnemyPosition then
-                            local offset = Vector3.new((teleCount % 3 - 1) * 2, 0, (math.floor(teleCount / 3)) * 2)
-                            targetCF = CFrame.new(Settings.TeleEnemyPosition + offset)
-                        else
-                            local offset = look * Settings.TeleEnemyDistance + Vector3.new((teleCount % 3 - 1) * 1.5, 0, 0)
-                            targetCF = CFrame.new(root.Position + offset)
-                        end
-                        tRoot.CFrame = targetCF
+                        local offset = Vector3.new((teleCount % 3 - 1) * 2, 0, (math.floor(teleCount / 3)) * 2)
+                        tRoot.CFrame = CFrame.new(pos + offset)
                         tRoot.Anchored = true
                         pcall(function() tHum.WalkSpeed = 0; tHum.JumpPower = 0 end)
-                        table.insert(teleTargets, {root = tRoot, hum = tHum, char = plr.Character})
                     end
-                end
-            end
-        end
-
-        if Settings.TeleAutoKill and #teleTargets > 0 then
-            local myChar = LocalPlayer.Character
-            local weapon = myChar and myChar:FindFirstChildOfClass("Tool")
-            local weaponHandle = weapon and (weapon:FindFirstChild("Handle") or weapon:FindFirstChildWhichIsA("BasePart"))
-
-            for _, t in ipairs(teleTargets) do
-                if hasFireTouchInterest and weaponHandle then
-                    pcall(function()
-                        firetouchinterest(weaponHandle, t.root, 0)
-                        task.defer(function() pcall(firetouchinterest, weaponHandle, t.root, 1) end)
-                    end)
-                    local tHead = t.char:FindFirstChild("Head")
-                    if tHead then
-                        pcall(function()
-                            firetouchinterest(weaponHandle, tHead, 0)
-                            task.defer(function() pcall(firetouchinterest, weaponHandle, tHead, 1) end)
-                        end)
-                    end
-                    local tTorso = t.char:FindFirstChild("UpperTorso") or t.char:FindFirstChild("Torso")
-                    if tTorso then
-                        pcall(function()
-                            firetouchinterest(weaponHandle, tTorso, 0)
-                            task.defer(function() pcall(firetouchinterest, weaponHandle, tTorso, 1) end)
-                        end)
-                    end
-                end
-
-                if hasFireTouchInterest and root then
-                    pcall(function()
-                        firetouchinterest(root, t.root, 0)
-                        task.defer(function() pcall(firetouchinterest, root, t.root, 1) end)
-                    end)
-                end
-
-                if hasFireTouchInterest then
-                    for _, part in ipairs(myChar:GetChildren()) do
-                        if part:IsA("BasePart") and part ~= root then
-                            pcall(function()
-                                firetouchinterest(part, t.root, 0)
-                                task.defer(function() pcall(firetouchinterest, part, t.root, 1) end)
-                            end)
-                            break
-                        end
-                    end
-                end
-            end
-
-            if weapon then
-                pcall(function() weapon:Activate() end)
-            end
-
-            if #Settings.AllDamageRemotes > 0 then
-                for _, t in ipairs(teleTargets) do
-                    for _, remote in ipairs(Settings.AllDamageRemotes) do
-                        pcall(function() remote:FireServer(t.char, t.root, t.root.Position) end)
-                    end
-                end
-            end
-
-            for _, remote in pairs(Settings.SpyRemotes) do
-                if remote.args then
-                    pcall(function() remote.remote:FireServer(unpack(remote.args)) end)
                 end
             end
         end
