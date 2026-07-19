@@ -69,6 +69,7 @@ local Settings = {
     -- Tele Enemy
     TeleEnemyEnabled = false,
     TeleEnemyDistance = 5,
+    TeleEnemyPosition = nil,
 
     -- Aimbot
     AimbotEnabled = false,
@@ -856,23 +857,44 @@ auraY = auraY + 42
 
 local TeleEnemyBtn
 TeleEnemyBtn = makeToggle(KillAuraTab, {
-    Position = UDim2.new(0, 10, 0, auraY), Text = "Tele Enemy (TP All To You)",
+    Position = UDim2.new(0, 10, 0, auraY), Text = "Tele Enemy (Fixed Pos)",
     Default = Settings.TeleEnemyEnabled, ZIndex = 6,
     OnChanged = function(v)
         Settings.TeleEnemyEnabled = v
+        if v and not Settings.TeleEnemyPosition then
+            showNotification("Chua luu toa do! Bam Save Position truoc", 3, theme.Warning)
+            Settings.TeleEnemyEnabled = false
+            return
+        end
         showNotification("Tele Enemy " .. (v and "ON" or "OFF"), 2, v and theme.Success or theme.TextDim)
     end,
 })
 auraY = auraY + 28
 
-makeSlider(KillAuraTab, {
-    Position = UDim2.new(0, 10, 0, auraY),
-    Text = "Tele Distance", Min = 2, Max = 20, Default = Settings.TeleEnemyDistance, Step = 1,
-    FillColor = theme.Danger,
-    Format = function(v) return math.floor(v) .. " studs" end,
-    ZIndex = 6, OnChanged = function(v) Settings.TeleEnemyDistance = math.floor(v) end,
+local telePosLabel = Instance.new("TextLabel")
+telePosLabel.Size = UDim2.new(1, -80, 0, 14)
+telePosLabel.Position = UDim2.new(0, 10, 0, auraY)
+telePosLabel.BackgroundTransparency = 1; telePosLabel.Text = "Pos: chua luu"
+telePosLabel.TextColor3 = theme.TextDim; telePosLabel.Font = Enum.Font.Gotham
+telePosLabel.TextSize = 10; telePosLabel.TextXAlignment = Enum.TextXAlignment.Left
+telePosLabel.ZIndex = 6; telePosLabel.Parent = KillAuraTab
+
+makeButton(KillAuraTab, {
+    Size = UDim2.new(0, 65, 0, 22),
+    Position = UDim2.new(1, -75, 0, auraY - 3),
+    Color = theme.Info, Text = "Save Pos", TextSize = 10, ZIndex = 6,
+    Callback = function()
+        local char = LocalPlayer.Character
+        local myRoot = char and char:FindFirstChild("HumanoidRootPart")
+        if myRoot then
+            Settings.TeleEnemyPosition = myRoot.Position
+            local p = Settings.TeleEnemyPosition
+            telePosLabel.Text = string.format("Pos: %.0f, %.0f, %.0f", p.X, p.Y, p.Z)
+            showNotification("Toa do da luu!", 2, theme.Success)
+        end
+    end
 })
-auraY = auraY + 46
+auraY = auraY + 28
 
 -- Toggles FIRST (before dropdowns so dropdown opens over empty space below)
 local wallCheckToggle = makeToggle(KillAuraTab, {
@@ -3736,8 +3758,8 @@ local miscConn = RunService.Heartbeat:Connect(function()
 
     if Settings.SpeedEnabled then hum.WalkSpeed = Settings.SpeedValue end
 
-    if Settings.TeleEnemyEnabled then
-        local look = root.CFrame.LookVector
+    if Settings.TeleEnemyEnabled and Settings.TeleEnemyPosition then
+        local pos = Settings.TeleEnemyPosition
         local teleCount = 0
         for _, plr in ipairs(Players:GetPlayers()) do
             if plr ~= LocalPlayer and plr.Character then
@@ -3747,15 +3769,15 @@ local miscConn = RunService.Heartbeat:Connect(function()
                     local sameTeam = LocalPlayer.Team and plr.Team and LocalPlayer.Team == plr.Team
                     if not sameTeam then
                         teleCount = teleCount + 1
-                        local offset = look * Settings.TeleEnemyDistance + Vector3.new((teleCount % 3 - 1) * 2, 0, 0)
-                        tRoot.CFrame = root.CFrame + offset
+                        local offset = Vector3.new((teleCount % 3 - 1) * 2, 0, (math.floor(teleCount / 3)) * 2)
+                        tRoot.CFrame = CFrame.new(pos + offset)
                         tRoot.Anchored = true
                         pcall(function() tHum.WalkSpeed = 0; tHum.JumpPower = 0 end)
                     end
                 end
             end
         end
-    else
+    elseif not Settings.TeleEnemyEnabled then
         for _, plr in ipairs(Players:GetPlayers()) do
             if plr ~= LocalPlayer and plr.Character then
                 local tRoot = plr.Character:FindFirstChild("HumanoidRootPart")
