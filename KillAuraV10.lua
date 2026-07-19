@@ -509,7 +509,8 @@ end
 local _dropdownOverlay = nil
 
 local function getDropdownOverlay()
-    return _dropdownOverlay
+    if _dropdownOverlay and _dropdownOverlay.Parent then return _dropdownOverlay end
+    return nil
 end
 
 local function makeDropdown(parent, props)
@@ -643,8 +644,9 @@ local function makeDropdown(parent, props)
     local function openMenu()
         closeAllDropdowns(dropdown)
 
-        if _dropdownOverlay then
-            menuFrame.Parent = _dropdownOverlay
+        local overlay = getDropdownOverlay()
+        if overlay then
+            menuFrame.Parent = overlay
         end
         local absPos = mainBtn.AbsolutePosition
         local absSize = mainBtn.AbsoluteSize
@@ -693,12 +695,17 @@ local theme = getTheme()
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "KillAuraV10"
 ScreenGui.ResetOnSpawn = false
-ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
 ScreenGui.IgnoreGuiInset = true
 ScreenGui.DisplayOrder = 10
 ScreenGui.Parent = CoreGui
 
-_dropdownOverlay = ScreenGui
+_dropdownOverlay = Instance.new("Frame")
+_dropdownOverlay.Size = UDim2.new(1, 0, 1, 0)
+_dropdownOverlay.BackgroundTransparency = 1
+_dropdownOverlay.ZIndex = 199
+_dropdownOverlay.Parent = ScreenGui
+_dropdownOverlay.Name = "DropdownOverlay"
 
 NotificationContainer = Instance.new("Frame")
 NotificationContainer.Size = UDim2.new(0, 200, 0, 300)
@@ -1388,7 +1395,7 @@ miscY = miscY + 50
 -- Sword Flying separator
 local swordSep = Instance.new("Frame")
 swordSep.Size = UDim2.new(1, -20, 0, 1); swordSep.Position = UDim2.new(0, 10, 0, miscY)
-swordSep.BackgroundColor3 = theme.Border; swordSep.BorderSizePixel = 0; swordSep.ZIndex = 6; swordSep.Parent = MiscTab
+swordSep.BackgroundColor3 = theme.SurfaceLight; swordSep.BorderSizePixel = 0; swordSep.ZIndex = 6; swordSep.Parent = MiscTab
 miscY = miscY + 8
 
 local swordLabel = Instance.new("TextLabel")
@@ -1421,7 +1428,7 @@ miscY = miscY + 50
 -- End sword fly section separator
 local swordSep2 = Instance.new("Frame")
 swordSep2.Size = UDim2.new(1, -20, 0, 1); swordSep2.Position = UDim2.new(0, 10, 0, miscY)
-swordSep2.BackgroundColor3 = theme.Border; swordSep2.BorderSizePixel = 0; swordSep2.ZIndex = 6; swordSep2.Parent = MiscTab
+swordSep2.BackgroundColor3 = theme.SurfaceLight; swordSep2.BorderSizePixel = 0; swordSep2.ZIndex = 6; swordSep2.Parent = MiscTab
 miscY = miscY + 8
 
 makeToggle(MiscTab, {
