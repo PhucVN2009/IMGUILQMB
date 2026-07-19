@@ -3749,9 +3749,18 @@ local miscConn = RunService.Heartbeat:Connect(function()
                         teleCount = teleCount + 1
                         local offset = look * Settings.TeleEnemyDistance + Vector3.new((teleCount % 3 - 1) * 2, 0, 0)
                         tRoot.CFrame = root.CFrame + offset
-                        tRoot.Velocity = Vector3.zero
-                        pcall(function() tRoot.AssemblyLinearVelocity = Vector3.zero end)
+                        tRoot.Anchored = true
+                        pcall(function() tHum.WalkSpeed = 0; tHum.JumpPower = 0 end)
                     end
+                end
+            end
+        end
+    else
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr ~= LocalPlayer and plr.Character then
+                local tRoot = plr.Character:FindFirstChild("HumanoidRootPart")
+                if tRoot and tRoot.Anchored then
+                    tRoot.Anchored = false
                 end
             end
         end
