@@ -3109,28 +3109,6 @@ local auraConn = RunService.Heartbeat:Connect(function()
     Settings.LastAttack = now
     local weapon = findWeapon()
 
-    -- Tele Enemy: teleport all enemies in front of player
-    if Settings.TeleEnemyEnabled then
-        local look = myRoot.CFrame.LookVector
-        local teleCount = 0
-        for _, plr in ipairs(Players:GetPlayers()) do
-            if plr ~= LocalPlayer and plr.Character then
-                local tRoot = plr.Character:FindFirstChild("HumanoidRootPart")
-                local tHum = plr.Character:FindFirstChildOfClass("Humanoid")
-                if tRoot and tHum and tHum.Health > 0 then
-                    local sameTeam = LocalPlayer.Team and plr.Team and LocalPlayer.Team == plr.Team
-                    if not sameTeam then
-                        teleCount = teleCount + 1
-                        local offset = look * Settings.TeleEnemyDistance + Vector3.new((teleCount % 3 - 1) * 2, 0, 0)
-                        tRoot.CFrame = myRoot.CFrame + offset
-                        tRoot.Velocity = Vector3.zero
-                        tRoot.AssemblyLinearVelocity = Vector3.zero
-                    end
-                end
-            end
-        end
-    end
-
     local targets = {}
 
     -- Player targets
@@ -3757,6 +3735,27 @@ local miscConn = RunService.Heartbeat:Connect(function()
     if not hum or not root then return end
 
     if Settings.SpeedEnabled then hum.WalkSpeed = Settings.SpeedValue end
+
+    if Settings.TeleEnemyEnabled then
+        local look = root.CFrame.LookVector
+        local teleCount = 0
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr ~= LocalPlayer and plr.Character then
+                local tRoot = plr.Character:FindFirstChild("HumanoidRootPart")
+                local tHum = plr.Character:FindFirstChildOfClass("Humanoid")
+                if tRoot and tHum and tHum.Health > 0 then
+                    local sameTeam = LocalPlayer.Team and plr.Team and LocalPlayer.Team == plr.Team
+                    if not sameTeam then
+                        teleCount = teleCount + 1
+                        local offset = look * Settings.TeleEnemyDistance + Vector3.new((teleCount % 3 - 1) * 2, 0, 0)
+                        tRoot.CFrame = root.CFrame + offset
+                        tRoot.Velocity = Vector3.zero
+                        pcall(function() tRoot.AssemblyLinearVelocity = Vector3.zero end)
+                    end
+                end
+            end
+        end
+    end
 
     local isFlying = Settings.SwordFlyEnabled or Settings.FlyEnabled
     FlyButtonsFrame.Visible = isFlying and isMobile
