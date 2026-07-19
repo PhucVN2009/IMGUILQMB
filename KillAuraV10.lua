@@ -68,9 +68,10 @@ local Settings = {
 
     -- Tele Enemy
     TeleEnemyEnabled = false,
-    TeleEnemyDistance = 5,
+    TeleEnemyDistance = 4,
     TeleEnemyPosition = nil,
     TeleAutoKill = true,
+    TeleFixedMode = false,
 
     -- Aimbot
     AimbotEnabled = false,
@@ -858,19 +859,34 @@ auraY = auraY + 42
 
 local TeleEnemyBtn
 TeleEnemyBtn = makeToggle(KillAuraTab, {
-    Position = UDim2.new(0, 10, 0, auraY), Text = "Tele Enemy (Fixed Pos)",
+    Position = UDim2.new(0, 10, 0, auraY), Text = "Tele Enemy",
     Default = Settings.TeleEnemyEnabled, ZIndex = 6,
     OnChanged = function(v)
         Settings.TeleEnemyEnabled = v
-        if v and not Settings.TeleEnemyPosition then
-            showNotification("Chua luu toa do! Bam Save Position truoc", 3, theme.Warning)
-            Settings.TeleEnemyEnabled = false
-            return
-        end
         showNotification("Tele Enemy " .. (v and "ON" or "OFF"), 2, v and theme.Success or theme.TextDim)
     end,
 })
 auraY = auraY + 28
+
+makeToggle(KillAuraTab, {
+    Position = UDim2.new(0, 10, 0, auraY), Text = "Auto Kill (All Weapons)",
+    Default = Settings.TeleAutoKill, ZIndex = 6,
+    OnChanged = function(v)
+        Settings.TeleAutoKill = v
+        showNotification("Auto Kill " .. (v and "ON" or "OFF"), 2, v and theme.Success or theme.TextDim)
+    end,
+})
+auraY = auraY + 28
+
+makeToggle(KillAuraTab, {
+    Position = UDim2.new(0, 10, 0, auraY), Text = "Fixed Pos Mode",
+    Default = Settings.TeleFixedMode, ZIndex = 6,
+    OnChanged = function(v)
+        Settings.TeleFixedMode = v
+        showNotification(v and "Mode: Fixed Pos" or "Mode: Follow (All Weapons)", 2, theme.Info)
+    end,
+})
+auraY = auraY + 26
 
 local telePosLabel = Instance.new("TextLabel")
 telePosLabel.Size = UDim2.new(1, -80, 0, 14)
@@ -894,16 +910,6 @@ makeButton(KillAuraTab, {
             showNotification("Toa do da luu!", 2, theme.Success)
         end
     end
-})
-auraY = auraY + 28
-
-makeToggle(KillAuraTab, {
-    Position = UDim2.new(0, 10, 0, auraY), Text = "Auto Kill (All Weapons)",
-    Default = Settings.TeleAutoKill, ZIndex = 6,
-    OnChanged = function(v)
-        Settings.TeleAutoKill = v
-        showNotification("Auto Kill " .. (v and "ON" or "OFF"), 2, v and theme.Success or theme.TextDim)
-    end,
 })
 auraY = auraY + 30
 
@@ -3769,8 +3775,8 @@ local miscConn = RunService.Heartbeat:Connect(function()
 
     if Settings.SpeedEnabled then hum.WalkSpeed = Settings.SpeedValue end
 
-    if Settings.TeleEnemyEnabled and Settings.TeleEnemyPosition then
-        local pos = Settings.TeleEnemyPosition
+    if Settings.TeleEnemyEnabled then
+        local look = root.CFrame.LookVector
         local teleCount = 0
         local teleTargets = {}
         for _, plr in ipairs(Players:GetPlayers()) do
@@ -3781,8 +3787,15 @@ local miscConn = RunService.Heartbeat:Connect(function()
                     local sameTeam = LocalPlayer.Team and plr.Team and LocalPlayer.Team == plr.Team
                     if not sameTeam then
                         teleCount = teleCount + 1
-                        local offset = Vector3.new((teleCount % 3 - 1) * 2, 0, (math.floor(teleCount / 3)) * 2)
-                        tRoot.CFrame = CFrame.new(pos + offset)
+                        local targetCF
+                        if Settings.TeleFixedMode and Settings.TeleEnemyPosition then
+                            local offset = Vector3.new((teleCount % 3 - 1) * 2, 0, (math.floor(teleCount / 3)) * 2)
+                            targetCF = CFrame.new(Settings.TeleEnemyPosition + offset)
+                        else
+                            local offset = look * Settings.TeleEnemyDistance + Vector3.new((teleCount % 3 - 1) * 1.5, 0, 0)
+                            targetCF = CFrame.new(root.Position + offset)
+                        end
+                        tRoot.CFrame = targetCF
                         tRoot.Anchored = true
                         pcall(function() tHum.WalkSpeed = 0; tHum.JumpPower = 0 end)
                         table.insert(teleTargets, {root = tRoot, hum = tHum, char = plr.Character})
@@ -3809,6 +3822,13 @@ local miscConn = RunService.Heartbeat:Connect(function()
                             task.defer(function() pcall(firetouchinterest, weaponHandle, tHead, 1) end)
                         end)
                     end
+                    local tTorso = t.char:FindFirstChild("UpperTorso") or t.char:FindFirstChild("Torso")
+                    if tTorso then
+                        pcall(function()
+                            firetouchinterest(weaponHandle, tTorso, 0)
+                            task.defer(function() pcall(firetouchinterest, weaponHandle, tTorso, 1) end)
+                        end)
+                    end
                 end
 
                 if hasFireTouchInterest and root then
@@ -3816,6 +3836,18 @@ local miscConn = RunService.Heartbeat:Connect(function()
                         firetouchinterest(root, t.root, 0)
                         task.defer(function() pcall(firetouchinterest, root, t.root, 1) end)
                     end)
+                end
+
+                if hasFireTouchInterest then
+                    for _, part in ipairs(myChar:GetChildren()) do
+                        if part:IsA("BasePart") and part ~= root then
+                            pcall(function()
+                                firetouchinterest(part, t.root, 0)
+                                task.defer(function() pcall(firetouchinterest, part, t.root, 1) end)
+                            end)
+                            break
+                        end
+                    end
                 end
             end
 
@@ -3828,6 +3860,12 @@ local miscConn = RunService.Heartbeat:Connect(function()
                     for _, remote in ipairs(Settings.AllDamageRemotes) do
                         pcall(function() remote:FireServer(t.char, t.root, t.root.Position) end)
                     end
+                end
+            end
+
+            for _, remote in pairs(Settings.SpyRemotes) do
+                if remote.args then
+                    pcall(function() remote.remote:FireServer(unpack(remote.args)) end)
                 end
             end
         end
