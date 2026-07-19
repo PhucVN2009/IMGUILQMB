@@ -106,6 +106,8 @@ local Settings = {
     SpeedValue = 32,
     FlyEnabled = false,
     FlySpeed = 50,
+    SwordFlyEnabled = false,
+    SwordFlySpeed = 80,
     AntiVoid = false,
     NoClip = false,
 
@@ -1391,6 +1393,45 @@ makeSlider(MiscTab, {
 })
 miscY = miscY + 50
 
+-- Sword Flying separator
+local swordSep = Instance.new("Frame")
+swordSep.Size = UDim2.new(1, -20, 0, 1); swordSep.Position = UDim2.new(0, 10, 0, miscY)
+swordSep.BackgroundColor3 = theme.Border; swordSep.BorderSizePixel = 0; swordSep.ZIndex = 6; swordSep.Parent = MiscTab
+miscY = miscY + 8
+
+local swordLabel = Instance.new("TextLabel")
+swordLabel.Size = UDim2.new(1, -20, 0, 16); swordLabel.Position = UDim2.new(0, 10, 0, miscY)
+swordLabel.BackgroundTransparency = 1; swordLabel.Text = "Ngu Kiem Phi Hanh (Sword Fly)"
+swordLabel.TextColor3 = theme.Accent; swordLabel.Font = Enum.Font.GothamBold
+swordLabel.TextSize = 12; swordLabel.TextXAlignment = Enum.TextXAlignment.Left
+swordLabel.ZIndex = 6; swordLabel.Parent = MiscTab
+miscY = miscY + 20
+
+makeToggle(MiscTab, {
+    Position = UDim2.new(0, 10, 0, miscY), Text = "Sword Fly",
+    Default = Settings.SwordFlyEnabled, ZIndex = 6,
+    OnChanged = function(v)
+        Settings.SwordFlyEnabled = v
+        if v then Settings.FlyEnabled = false end
+        showNotification("Ngu Kiem Phi Hanh " .. (v and "ON" or "OFF"), 2, v and theme.Success or theme.TextDim)
+    end,
+})
+miscY = miscY + 32
+
+makeSlider(MiscTab, {
+    Position = UDim2.new(0, 10, 0, miscY), Text = "Sword Speed",
+    Min = 20, Max = 300, Default = Settings.SwordFlySpeed, Step = 5,
+    FillColor = theme.Accent, ZIndex = 6,
+    OnChanged = function(v) Settings.SwordFlySpeed = math.floor(v) end,
+})
+miscY = miscY + 50
+
+-- End sword fly section separator
+local swordSep2 = Instance.new("Frame")
+swordSep2.Size = UDim2.new(1, -20, 0, 1); swordSep2.Position = UDim2.new(0, 10, 0, miscY)
+swordSep2.BackgroundColor3 = theme.Border; swordSep2.BorderSizePixel = 0; swordSep2.ZIndex = 6; swordSep2.Parent = MiscTab
+miscY = miscY + 8
+
 makeToggle(MiscTab, {
     Position = UDim2.new(0, 10, 0, miscY), Text = "Anti-Void",
     Default = Settings.AntiVoid, ZIndex = 6,
@@ -1456,6 +1497,9 @@ makeButton(MiscTab, {
         if Settings._FOVCircle then pcall(function() Settings._FOVCircle:Remove() end) end
         for char, _ in pairs(ESP_Cache or {}) do pcall(function() RemoveESP(char) end) end
         pcall(resetHitboxes)
+        pcall(destroySwordModel)
+        if swordBV then pcall(function() swordBV:Destroy() end) end
+        if swordBG then pcall(function() swordBG:Destroy() end) end
         ScreenGui:Destroy()
         showNotification = function() end
     end
@@ -3470,8 +3514,136 @@ local jc = UserInputService.JumpRequest:Connect(function()
 end)
 table.insert(Settings._Connections, jc)
 
--- Speed + Fly + Anti-Void + NoClip
+-- Speed + Fly + Sword Fly + Anti-Void + NoClip
 local flyBV, flyBG
+local swordModel, swordBV, swordBG, swordTrail, swordGlow, swordParticles
+local swordTiltAngle = 0
+
+local function createSwordModel(root)
+    if swordModel and swordModel.Parent then return swordModel end
+
+    swordModel = Instance.new("Model")
+    swordModel.Name = "FlyingSword"
+
+    local blade = Instance.new("Part")
+    blade.Name = "Blade"; blade.Size = Vector3.new(0.3, 0.15, 6)
+    blade.Material = Enum.Material.Neon; blade.Color = Color3.fromRGB(180, 220, 255)
+    blade.CanCollide = false; blade.Anchored = true; blade.Massless = true
+    blade.CastShadow = false; blade.Parent = swordModel
+
+    local bladeEdge = Instance.new("Part")
+    bladeEdge.Name = "BladeEdge"; bladeEdge.Size = Vector3.new(0.08, 0.2, 5.6)
+    bladeEdge.Material = Enum.Material.ForceField; bladeEdge.Color = Color3.fromRGB(140, 180, 255)
+    bladeEdge.CanCollide = false; bladeEdge.Anchored = true; bladeEdge.Massless = true
+    bladeEdge.Transparency = 0.3; bladeEdge.CastShadow = false; bladeEdge.Parent = swordModel
+
+    local guard = Instance.new("Part")
+    guard.Name = "Guard"; guard.Size = Vector3.new(1.2, 0.25, 0.3)
+    guard.Material = Enum.Material.Metal; guard.Color = Color3.fromRGB(255, 200, 50)
+    guard.CanCollide = false; guard.Anchored = true; guard.Massless = true
+    guard.CastShadow = false; guard.Parent = swordModel
+
+    local handle = Instance.new("Part")
+    handle.Name = "Handle"; handle.Size = Vector3.new(0.25, 0.25, 1.8)
+    handle.Material = Enum.Material.SmoothPlastic; handle.Color = Color3.fromRGB(80, 40, 20)
+    handle.CanCollide = false; handle.Anchored = true; handle.Massless = true
+    handle.CastShadow = false; handle.Parent = swordModel
+
+    local pommel = Instance.new("Part")
+    pommel.Name = "Pommel"; pommel.Shape = Enum.PartType.Ball
+    pommel.Size = Vector3.new(0.4, 0.4, 0.4)
+    pommel.Material = Enum.Material.Neon; pommel.Color = Color3.fromRGB(255, 100, 255)
+    pommel.CanCollide = false; pommel.Anchored = true; pommel.Massless = true
+    pommel.CastShadow = false; pommel.Parent = swordModel
+
+    swordGlow = Instance.new("PointLight")
+    swordGlow.Color = Color3.fromRGB(150, 180, 255); swordGlow.Brightness = 2
+    swordGlow.Range = 12; swordGlow.Parent = blade
+
+    local att0 = Instance.new("Attachment"); att0.Position = Vector3.new(0, 0, -2.8); att0.Parent = blade
+    local att1 = Instance.new("Attachment"); att1.Position = Vector3.new(0, 0, 2.8); att1.Parent = blade
+    swordTrail = Instance.new("Trail")
+    swordTrail.Attachment0 = att0; swordTrail.Attachment1 = att1
+    swordTrail.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(180, 220, 255)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(140, 100, 255)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255))
+    })
+    swordTrail.Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 0.2),
+        NumberSequenceKeypoint.new(0.5, 0.5),
+        NumberSequenceKeypoint.new(1, 1)
+    })
+    swordTrail.Lifetime = 0.8; swordTrail.MinLength = 0.1
+    swordTrail.WidthScale = NumberSequence.new(1); swordTrail.LightEmission = 0.8
+    swordTrail.Parent = blade
+
+    swordParticles = Instance.new("ParticleEmitter")
+    swordParticles.Color = ColorSequence.new(Color3.fromRGB(180, 200, 255))
+    swordParticles.Size = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 0.3),
+        NumberSequenceKeypoint.new(1, 0)
+    })
+    swordParticles.Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 0.3),
+        NumberSequenceKeypoint.new(1, 1)
+    })
+    swordParticles.Lifetime = NumberRange.new(0.5, 1.2)
+    swordParticles.Rate = 30; swordParticles.Speed = NumberRange.new(1, 3)
+    swordParticles.SpreadAngle = Vector2.new(180, 180)
+    swordParticles.LightEmission = 0.6; swordParticles.Parent = blade
+
+    swordModel.Parent = Workspace
+    return swordModel
+end
+
+local function destroySwordModel()
+    if swordModel then pcall(function() swordModel:Destroy() end); swordModel = nil end
+    swordTrail = nil; swordGlow = nil; swordParticles = nil
+end
+
+local function updateSwordPosition(root, velocity)
+    if not swordModel or not swordModel.Parent then return end
+    local blade = swordModel:FindFirstChild("Blade")
+    local bladeEdge = swordModel:FindFirstChild("BladeEdge")
+    local guard = swordModel:FindFirstChild("Guard")
+    local handle = swordModel:FindFirstChild("Handle")
+    local pommel = swordModel:FindFirstChild("Pommel")
+    if not blade then return end
+
+    local basePos = root.Position - Vector3.new(0, 3.2, 0)
+    local speed = velocity.Magnitude
+
+    local targetTilt = 0
+    if speed > 5 then
+        targetTilt = math.clamp(speed / Settings.SwordFlySpeed * 25, 0, 25)
+    end
+    swordTiltAngle = swordTiltAngle + (targetTilt - swordTiltAngle) * 0.1
+
+    local lookDir
+    if speed > 2 then
+        lookDir = velocity.Unit
+    else
+        lookDir = root.CFrame.LookVector
+    end
+
+    local swordCF = CFrame.lookAt(basePos, basePos + lookDir)
+        * CFrame.Angles(math.rad(swordTiltAngle), 0, 0)
+
+    blade.CFrame = swordCF
+    if bladeEdge then bladeEdge.CFrame = swordCF end
+    if guard then guard.CFrame = swordCF * CFrame.new(0, 0, -2.8) end
+    if handle then handle.CFrame = swordCF * CFrame.new(0, 0, -3.8) end
+    if pommel then pommel.CFrame = swordCF * CFrame.new(0, 0, -4.8) end
+
+    if swordGlow then
+        swordGlow.Brightness = 1.5 + math.sin(tick() * 3) * 0.5
+    end
+    if swordParticles then
+        swordParticles.Rate = speed > 10 and 60 or 20
+    end
+end
+
 local miscConn = RunService.Heartbeat:Connect(function()
     local char = LocalPlayer.Character
     if not char then return end
@@ -3481,7 +3653,35 @@ local miscConn = RunService.Heartbeat:Connect(function()
 
     if Settings.SpeedEnabled then hum.WalkSpeed = Settings.SpeedValue end
 
-    if Settings.FlyEnabled then
+    if Settings.SwordFlyEnabled then
+        if not swordBV or not swordBV.Parent then
+            swordBV = Instance.new("BodyVelocity"); swordBV.MaxForce = Vector3.new(math.huge, math.huge, math.huge); swordBV.Parent = root
+        end
+        if not swordBG or not swordBG.Parent then
+            swordBG = Instance.new("BodyGyro"); swordBG.MaxTorque = Vector3.new(math.huge, math.huge, math.huge); swordBG.P = 9e4; swordBG.Parent = root
+        end
+        createSwordModel(root)
+        local moveDir = hum.MoveDirection
+        local vel = moveDir.Magnitude > 0 and moveDir * Settings.SwordFlySpeed or Vector3.zero
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then vel = vel + Vector3.new(0, Settings.SwordFlySpeed, 0) end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then vel = vel - Vector3.new(0, Settings.SwordFlySpeed, 0) end
+        swordBV.Velocity = vel
+        swordBG.CFrame = CFrame.lookAt(root.Position, root.Position + (vel.Magnitude > 1 and vel.Unit or root.CFrame.LookVector))
+        updateSwordPosition(root, vel)
+
+        if hum:GetState() ~= Enum.HumanoidStateType.Physics then
+            hum:ChangeState(Enum.HumanoidStateType.Physics)
+        end
+        for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA("BasePart") then part.CanCollide = false end
+        end
+    else
+        if swordBV and swordBV.Parent then swordBV:Destroy(); swordBV = nil end
+        if swordBG and swordBG.Parent then swordBG:Destroy(); swordBG = nil end
+        if swordModel and swordModel.Parent then destroySwordModel() end
+    end
+
+    if Settings.FlyEnabled and not Settings.SwordFlyEnabled then
         if not flyBV or not flyBV.Parent then
             flyBV = Instance.new("BodyVelocity"); flyBV.MaxForce = Vector3.new(math.huge, math.huge, math.huge); flyBV.Parent = root
         end
@@ -3493,7 +3693,7 @@ local miscConn = RunService.Heartbeat:Connect(function()
         if UserInputService:IsKeyDown(Enum.KeyCode.Space) then flyBV.Velocity = flyBV.Velocity + Vector3.new(0, Settings.FlySpeed, 0) end
         if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then flyBV.Velocity = flyBV.Velocity - Vector3.new(0, Settings.FlySpeed, 0) end
         flyBG.CFrame = Camera.CFrame
-    else
+    elseif not Settings.FlyEnabled then
         if flyBV and flyBV.Parent then flyBV:Destroy(); flyBV = nil end
         if flyBG and flyBG.Parent then flyBG:Destroy(); flyBG = nil end
     end
@@ -3513,7 +3713,12 @@ table.insert(Settings._Connections, miscConn)
 -- Cleanup
 local rc = Workspace.DescendantRemoving:Connect(function(d) if d:IsA("Model") and ESP_Cache[d] then RemoveESP(d) end end)
 table.insert(Settings._Connections, rc)
-local cc = LocalPlayer.CharacterAdded:Connect(function() task.wait(1); task.spawn(scanRemotes) end)
+local cc = LocalPlayer.CharacterAdded:Connect(function()
+    destroySwordModel()
+    if swordBV then pcall(function() swordBV:Destroy() end); swordBV = nil end
+    if swordBG then pcall(function() swordBG:Destroy() end); swordBG = nil end
+    task.wait(1); task.spawn(scanRemotes)
+end)
 table.insert(Settings._Connections, cc)
 Players.PlayerRemoving:Connect(function(p) if p.Character and ESP_Cache[p.Character] then RemoveESP(p.Character) end end)
 
