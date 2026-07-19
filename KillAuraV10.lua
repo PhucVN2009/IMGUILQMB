@@ -66,6 +66,10 @@ local Settings = {
     CustomCombatRemotes = {},
     HasCustomInventory = false,
 
+    -- Tele Enemy
+    TeleEnemyEnabled = false,
+    TeleEnemyDistance = 5,
+
     -- Aimbot
     AimbotEnabled = false,
     AimbotFOV = 120,
@@ -849,6 +853,26 @@ KillAuraBtn = makeButton(KillAuraTab, {
     end
 })
 auraY = auraY + 42
+
+local TeleEnemyBtn
+TeleEnemyBtn = makeToggle(KillAuraTab, {
+    Position = UDim2.new(0, 10, 0, auraY), Text = "Tele Enemy (TP All To You)",
+    Default = Settings.TeleEnemyEnabled, ZIndex = 6,
+    OnChanged = function(v)
+        Settings.TeleEnemyEnabled = v
+        showNotification("Tele Enemy " .. (v and "ON" or "OFF"), 2, v and theme.Success or theme.TextDim)
+    end,
+})
+auraY = auraY + 28
+
+makeSlider(KillAuraTab, {
+    Position = UDim2.new(0, 10, 0, auraY),
+    Text = "Tele Distance", Min = 2, Max = 20, Default = Settings.TeleEnemyDistance, Step = 1,
+    FillColor = theme.Danger,
+    Format = function(v) return math.floor(v) .. " studs" end,
+    ZIndex = 6, OnChanged = function(v) Settings.TeleEnemyDistance = math.floor(v) end,
+})
+auraY = auraY + 46
 
 -- Toggles FIRST (before dropdowns so dropdown opens over empty space below)
 local wallCheckToggle = makeToggle(KillAuraTab, {
@@ -3084,6 +3108,28 @@ local auraConn = RunService.Heartbeat:Connect(function()
 
     Settings.LastAttack = now
     local weapon = findWeapon()
+
+    -- Tele Enemy: teleport all enemies in front of player
+    if Settings.TeleEnemyEnabled then
+        local look = myRoot.CFrame.LookVector
+        local teleCount = 0
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr ~= LocalPlayer and plr.Character then
+                local tRoot = plr.Character:FindFirstChild("HumanoidRootPart")
+                local tHum = plr.Character:FindFirstChildOfClass("Humanoid")
+                if tRoot and tHum and tHum.Health > 0 then
+                    local sameTeam = LocalPlayer.Team and plr.Team and LocalPlayer.Team == plr.Team
+                    if not sameTeam then
+                        teleCount = teleCount + 1
+                        local offset = look * Settings.TeleEnemyDistance + Vector3.new((teleCount % 3 - 1) * 2, 0, 0)
+                        tRoot.CFrame = myRoot.CFrame + offset
+                        tRoot.Velocity = Vector3.zero
+                        tRoot.AssemblyLinearVelocity = Vector3.zero
+                    end
+                end
+            end
+        end
+    end
 
     local targets = {}
 
