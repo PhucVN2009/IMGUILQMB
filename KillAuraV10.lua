@@ -90,6 +90,15 @@ local Settings = {
     UseDrawingAPI = true,
     UseFallbackESP = false,
 
+    -- Hitbox
+    HitboxEnabled = false,
+    HitboxX = 10,
+    HitboxY = 10,
+    HitboxZ = 10,
+    HitboxTransparency = 0.7,
+    HitboxCanCollide = false,
+    HitboxVisible = true,
+
     -- Misc
     AntiAFK = true,
     InfiniteJump = false,
@@ -487,6 +496,14 @@ local function makeDraggable(handle, frame)
     table.insert(Settings._Connections, conn)
 end
 
+local allDropdowns = {}
+
+local function closeAllDropdowns(except)
+    for _, dd in ipairs(allDropdowns) do
+        if dd ~= except then dd.Close() end
+    end
+end
+
 local function makeDropdown(parent, props)
     local theme = getTheme()
     local container = Instance.new("Frame")
@@ -533,9 +550,12 @@ local function makeDropdown(parent, props)
     menuFrame.BorderSizePixel = 0
     menuFrame.Visible = false
     menuFrame.ClipsDescendants = true
+    menuFrame.Active = true
     menuFrame.Parent = container
-    if props.ZIndex then menuFrame.ZIndex = (props.ZIndex or 0) + 5 end
+    menuFrame.ZIndex = 50
     Instance.new("UICorner", menuFrame).CornerRadius = UDim.new(0, 6)
+    local menuStroke = Instance.new("UIStroke", menuFrame)
+    menuStroke.Color = theme.Accent; menuStroke.Thickness = 1
 
     local contentFrame
     if totalHeight > menuHeight then
@@ -543,16 +563,17 @@ local function makeDropdown(parent, props)
         scrollFrame.Size = UDim2.new(1, 0, 1, 0)
         scrollFrame.BackgroundTransparency = 1
         scrollFrame.BorderSizePixel = 0
-        scrollFrame.ScrollBarThickness = 3
+        scrollFrame.ScrollBarThickness = 4
         scrollFrame.ScrollBarImageColor3 = theme.AccentLight
         scrollFrame.CanvasSize = UDim2.new(0, 0, 0, totalHeight)
         scrollFrame.ScrollingEnabled = true
         scrollFrame.Parent = menuFrame
-        if props.ZIndex then scrollFrame.ZIndex = (props.ZIndex or 0) + 6 end
+        scrollFrame.ZIndex = 51
         contentFrame = Instance.new("Frame")
         contentFrame.Size = UDim2.new(1, 0, 0, totalHeight)
         contentFrame.BackgroundTransparency = 1
         contentFrame.Parent = scrollFrame
+        contentFrame.ZIndex = 51
     else
         contentFrame = menuFrame
     end
@@ -561,6 +582,7 @@ local function makeDropdown(parent, props)
     local menuOpen = false
     local currentValue = props.Default
     local lastMainClick = 0
+    local dropdown
 
     for i, optionName in ipairs(props.Options) do
         local btn = Instance.new("TextButton")
@@ -575,55 +597,68 @@ local function makeDropdown(parent, props)
         btn.TextXAlignment = Enum.TextXAlignment.Left
         btn.Visible = false
         btn.Parent = contentFrame
-        if props.ZIndex then btn.ZIndex = (props.ZIndex or 0) + 7 end
+        btn.ZIndex = 52
         Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 4)
 
         local lastBtnClick = 0
         local function selectOption()
             local now = tick()
-            if now - lastBtnClick < 0.25 then return end
+            if now - lastBtnClick < 0.2 then return end
             lastBtnClick = now
             currentValue = optionName
             mainBtn.Text = "  " .. optionName
             for _, b in ipairs(buttons) do b.BackgroundColor3 = theme.Surface end
             btn.BackgroundColor3 = theme.Accent
-            menuOpen = false; menuFrame.Visible = false
-            TweenService:Create(menuFrame, TweenInfo.new(0.15), {Size = UDim2.new(1, 0, 0, 0)}):Play()
+            menuOpen = false
+            menuFrame.Size = UDim2.new(1, 0, 0, 0)
+            menuFrame.Visible = false
             for _, b in ipairs(buttons) do b.Visible = false end
             arrow.Text = "v"
             if props.OnChanged then props.OnChanged(optionName) end
         end
         btn.MouseButton1Click:Connect(selectOption)
         btn.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.Touch then task.wait(0.05); selectOption() end
+            if input.UserInputType == Enum.UserInputType.Touch then
+                task.wait(0.05)
+                selectOption()
+            end
         end)
         table.insert(buttons, btn)
     end
 
+    local function closeMenu()
+        if not menuOpen then return end
+        menuOpen = false
+        menuFrame.Size = UDim2.new(1, 0, 0, 0)
+        menuFrame.Visible = false
+        for _, b in ipairs(buttons) do b.Visible = false end
+        arrow.Text = "v"
+    end
+
+    local function openMenu()
+        closeAllDropdowns(dropdown)
+        menuOpen = true
+        menuFrame.Visible = true
+        menuFrame.Size = UDim2.new(1, 0, 0, menuHeight)
+        for _, b in ipairs(buttons) do b.Visible = true end
+        arrow.Text = "^"
+    end
+
     local function toggleMenu()
         local now = tick()
-        if now - lastMainClick < 0.25 then return end
+        if now - lastMainClick < 0.2 then return end
         lastMainClick = now
-        menuOpen = not menuOpen
-        if menuOpen then
-            menuFrame.Visible = true
-            for _, b in ipairs(buttons) do b.Visible = true end
-            TweenService:Create(menuFrame, TweenInfo.new(0.2, Enum.EasingStyle.Quint), {Size = UDim2.new(1, 0, 0, menuHeight)}):Play()
-            arrow.Text = "^"
-        else
-            TweenService:Create(menuFrame, TweenInfo.new(0.15), {Size = UDim2.new(1, 0, 0, 0)}):Play()
-            task.delay(0.15, function()
-                if not menuOpen then menuFrame.Visible = false; for _, b in ipairs(buttons) do b.Visible = false end end
-            end)
-            arrow.Text = "v"
-        end
+        if menuOpen then closeMenu() else openMenu() end
     end
     mainBtn.MouseButton1Click:Connect(toggleMenu)
     mainBtn.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.Touch then task.wait(0.05); toggleMenu() end
+        if input.UserInputType == Enum.UserInputType.Touch then
+            task.wait(0.05)
+            toggleMenu()
+        end
     end)
 
-    return {
+    dropdown = {
         SetValue = function(value)
             currentValue = value; mainBtn.Text = "  " .. value
             for _, b in ipairs(buttons) do
@@ -631,11 +666,10 @@ local function makeDropdown(parent, props)
             end
         end,
         GetValue = function() return currentValue end,
-        Close = function()
-            menuOpen = false; menuFrame.Visible = false
-            for _, b in ipairs(buttons) do b.Visible = false end; arrow.Text = "v"
-        end,
+        Close = closeMenu,
     }
+    table.insert(allDropdowns, dropdown)
+    return dropdown
 end
 
 -- ============================================================
@@ -718,7 +752,7 @@ TabBar.Position = UDim2.new(0, 0, 0, 34)
 TabBar.BackgroundColor3 = theme.Surface
 TabBar.BorderSizePixel = 0; TabBar.ZIndex = 6; TabBar.Parent = MainFrame
 
-local tabNames = {"KillAura", "ESP", "Aimbot", "Misc"}
+local tabNames = {"KillAura", "ESP", "Aimbot", "Hitbox", "Misc"}
 local tabButtons = {}
 local tabFrames = {}
 
@@ -728,7 +762,7 @@ for i, name in ipairs(tabNames) do
     btn.Position = UDim2.new((i - 1) / #tabNames, 0, 0, 0)
     btn.BackgroundColor3 = name == Settings.CurrentTab and theme.Accent or theme.Surface
     btn.TextColor3 = theme.Text
-    btn.Text = name == "KillAura" and "Aura" or name
+    btn.Text = name == "KillAura" and "Aura" or (name == "Hitbox" and "HBox" or name)
     btn.Font = Enum.Font.GothamBold
     btn.TextSize = 10
     btn.AutoButtonColor = true
@@ -888,7 +922,7 @@ auraY = auraY + 34
 local modeLabel = Instance.new("TextLabel")
 modeLabel.Size = UDim2.new(1, -20, 0, 14)
 modeLabel.Position = UDim2.new(0, 10, 0, auraY)
-modeLabel.BackgroundTransparency = 1; modeLabel.Text = "Aura Mode (24 modes):"
+modeLabel.BackgroundTransparency = 1; modeLabel.Text = "Aura Mode (25 modes):"
 modeLabel.TextColor3 = theme.Warning; modeLabel.Font = Enum.Font.GothamBold
 modeLabel.TextSize = 11; modeLabel.TextXAlignment = Enum.TextXAlignment.Left
 modeLabel.ZIndex = 6; modeLabel.Parent = KillAuraTab
@@ -1089,6 +1123,168 @@ aimY = aimY + 34
 AimbotTab.Size = UDim2.new(1, 0, 0, aimY + 10)
 
 -- ============================================================
+-- TAB: HITBOX
+-- ============================================================
+local HitboxTab = Instance.new("Frame")
+HitboxTab.Size = UDim2.new(1, 0, 0, 500)
+HitboxTab.BackgroundTransparency = 1; HitboxTab.Visible = false
+HitboxTab.ZIndex = 6; HitboxTab.Parent = ContentArea
+tabFrames["Hitbox"] = HitboxTab
+
+local hbY = 6
+
+local hbTitle = Instance.new("TextLabel")
+hbTitle.Size = UDim2.new(1, -20, 0, 16)
+hbTitle.Position = UDim2.new(0, 10, 0, hbY)
+hbTitle.BackgroundTransparency = 1; hbTitle.Text = "Hitbox Expander - All Players"
+hbTitle.TextColor3 = theme.Warning; hbTitle.Font = Enum.Font.GothamBold
+hbTitle.TextSize = 12; hbTitle.TextXAlignment = Enum.TextXAlignment.Left
+hbTitle.ZIndex = 6; hbTitle.Parent = HitboxTab
+hbY = hbY + 20
+
+local HitboxBtn = makeButton(HitboxTab, {
+    Size = UDim2.new(1, -20, 0, 36),
+    Position = UDim2.new(0, 10, 0, hbY),
+    Color = theme.Danger, Text = "HITBOX: OFF", TextSize = 14, ZIndex = 6,
+    Callback = function()
+        Settings.HitboxEnabled = not Settings.HitboxEnabled
+        HitboxBtn.btn.Text = Settings.HitboxEnabled and "HITBOX: ON" or "HITBOX: OFF"
+        HitboxBtn.btn.BackgroundColor3 = Settings.HitboxEnabled and theme.Success or theme.Danger
+        showNotification("Hitbox " .. (Settings.HitboxEnabled and "ON" or "OFF"), 2, Settings.HitboxEnabled and theme.Success or theme.Danger)
+    end
+})
+hbY = hbY + 44
+
+local hbInfoLabel = Instance.new("TextLabel")
+hbInfoLabel.Size = UDim2.new(1, -20, 0, 28)
+hbInfoLabel.Position = UDim2.new(0, 10, 0, hbY)
+hbInfoLabel.BackgroundTransparency = 1
+hbInfoLabel.Text = "Expand all players' hitbox (except you)\nWalk through + shoot from inside hitbox"
+hbInfoLabel.TextColor3 = theme.TextDim; hbInfoLabel.Font = Enum.Font.Gotham
+hbInfoLabel.TextSize = 9; hbInfoLabel.TextXAlignment = Enum.TextXAlignment.Left
+hbInfoLabel.TextWrapped = true; hbInfoLabel.ZIndex = 6; hbInfoLabel.Parent = HitboxTab
+hbY = hbY + 34
+
+local hbXLabel = Instance.new("TextLabel")
+hbXLabel.Size = UDim2.new(1, -20, 0, 14)
+hbXLabel.Position = UDim2.new(0, 10, 0, hbY)
+hbXLabel.BackgroundTransparency = 1; hbXLabel.Text = "Hitbox X Size:"
+hbXLabel.TextColor3 = theme.TextDim; hbXLabel.Font = Enum.Font.Gotham
+hbXLabel.TextSize = 11; hbXLabel.TextXAlignment = Enum.TextXAlignment.Left
+hbXLabel.ZIndex = 6; hbXLabel.Parent = HitboxTab
+hbY = hbY + 14
+
+local hbXSlider = makeSlider(HitboxTab, {
+    Position = UDim2.new(0, 10, 0, hbY), Text = "X",
+    Min = 0, Max = 3000, Default = Settings.HitboxX, Step = 10,
+    FillColor = Color3.fromRGB(255, 80, 80), ZIndex = 6,
+    OnChanged = function(v) Settings.HitboxX = math.floor(v) end,
+})
+hbY = hbY + 50
+
+local hbYLabel = Instance.new("TextLabel")
+hbYLabel.Size = UDim2.new(1, -20, 0, 14)
+hbYLabel.Position = UDim2.new(0, 10, 0, hbY)
+hbYLabel.BackgroundTransparency = 1; hbYLabel.Text = "Hitbox Y Size:"
+hbYLabel.TextColor3 = theme.TextDim; hbYLabel.Font = Enum.Font.Gotham
+hbYLabel.TextSize = 11; hbYLabel.TextXAlignment = Enum.TextXAlignment.Left
+hbYLabel.ZIndex = 6; hbYLabel.Parent = HitboxTab
+hbY = hbY + 14
+
+local hbYSlider = makeSlider(HitboxTab, {
+    Position = UDim2.new(0, 10, 0, hbY), Text = "Y",
+    Min = 0, Max = 3000, Default = Settings.HitboxY, Step = 10,
+    FillColor = Color3.fromRGB(80, 255, 80), ZIndex = 6,
+    OnChanged = function(v) Settings.HitboxY = math.floor(v) end,
+})
+hbY = hbY + 50
+
+local hbZLabel = Instance.new("TextLabel")
+hbZLabel.Size = UDim2.new(1, -20, 0, 14)
+hbZLabel.Position = UDim2.new(0, 10, 0, hbY)
+hbZLabel.BackgroundTransparency = 1; hbZLabel.Text = "Hitbox Z Size:"
+hbZLabel.TextColor3 = theme.TextDim; hbZLabel.Font = Enum.Font.Gotham
+hbZLabel.TextSize = 11; hbZLabel.TextXAlignment = Enum.TextXAlignment.Left
+hbZLabel.ZIndex = 6; hbZLabel.Parent = HitboxTab
+hbY = hbY + 14
+
+local hbZSlider = makeSlider(HitboxTab, {
+    Position = UDim2.new(0, 10, 0, hbY), Text = "Z",
+    Min = 0, Max = 3000, Default = Settings.HitboxZ, Step = 10,
+    FillColor = Color3.fromRGB(80, 80, 255), ZIndex = 6,
+    OnChanged = function(v) Settings.HitboxZ = math.floor(v) end,
+})
+hbY = hbY + 50
+
+makeSlider(HitboxTab, {
+    Position = UDim2.new(0, 10, 0, hbY), Text = "Transparency",
+    Min = 0, Max = 1, Default = Settings.HitboxTransparency, Step = 0.05,
+    FillColor = theme.AccentLight, ZIndex = 6,
+    OnChanged = function(v) Settings.HitboxTransparency = v end,
+})
+hbY = hbY + 50
+
+makeToggle(HitboxTab, {
+    Position = UDim2.new(0, 10, 0, hbY), Text = "Walk Through (NoCollide)",
+    Default = not Settings.HitboxCanCollide, ZIndex = 6,
+    OnChanged = function(v) Settings.HitboxCanCollide = not v end,
+})
+hbY = hbY + 32
+
+makeToggle(HitboxTab, {
+    Position = UDim2.new(0, 10, 0, hbY), Text = "Show Hitbox (Visible)",
+    Default = Settings.HitboxVisible, ZIndex = 6,
+    OnChanged = function(v) Settings.HitboxVisible = v end,
+})
+hbY = hbY + 32
+
+local hbPresetLabel = Instance.new("TextLabel")
+hbPresetLabel.Size = UDim2.new(1, -20, 0, 14)
+hbPresetLabel.Position = UDim2.new(0, 10, 0, hbY)
+hbPresetLabel.BackgroundTransparency = 1; hbPresetLabel.Text = "Quick Presets:"
+hbPresetLabel.TextColor3 = theme.TextDim; hbPresetLabel.Font = Enum.Font.GothamBold
+hbPresetLabel.TextSize = 11; hbPresetLabel.TextXAlignment = Enum.TextXAlignment.Left
+hbPresetLabel.ZIndex = 6; hbPresetLabel.Parent = HitboxTab
+hbY = hbY + 18
+
+local presets = {
+    {name = "Small (20)", x = 20, y = 20, z = 20},
+    {name = "Medium (50)", x = 50, y = 50, z = 50},
+    {name = "Large (200)", x = 200, y = 200, z = 200},
+    {name = "MEGA (1000)", x = 1000, y = 1000, z = 1000},
+    {name = "MAX (3000)", x = 3000, y = 3000, z = 3000},
+}
+for pi, preset in ipairs(presets) do
+    local col = (pi - 1) % 3
+    local row = math.floor((pi - 1) / 3)
+    makeButton(HitboxTab, {
+        Size = UDim2.new(0.3, -4, 0, 28),
+        Position = UDim2.new(col * 0.33 + 0.02, 0, 0, hbY + row * 34),
+        Color = theme.SurfaceLight, Text = preset.name, TextSize = 9, ZIndex = 6,
+        Callback = function()
+            Settings.HitboxX = preset.x; Settings.HitboxY = preset.y; Settings.HitboxZ = preset.z
+            if hbXSlider and hbXSlider.SetValue then hbXSlider.SetValue(preset.x) end
+            if hbYSlider and hbYSlider.SetValue then hbYSlider.SetValue(preset.y) end
+            if hbZSlider and hbZSlider.SetValue then hbZSlider.SetValue(preset.z) end
+            showNotification("Hitbox: " .. preset.name, 2, theme.Info)
+        end
+    })
+end
+hbY = hbY + 72
+
+local hbStatusLabel = Instance.new("TextLabel")
+hbStatusLabel.Size = UDim2.new(1, -20, 0, 14)
+hbStatusLabel.Position = UDim2.new(0, 10, 0, hbY)
+hbStatusLabel.BackgroundTransparency = 1
+hbStatusLabel.Text = "Hitbox: OFF"
+hbStatusLabel.TextColor3 = theme.TextDim; hbStatusLabel.Font = Enum.Font.Gotham
+hbStatusLabel.TextSize = 10; hbStatusLabel.TextXAlignment = Enum.TextXAlignment.Left
+hbStatusLabel.ZIndex = 6; hbStatusLabel.Parent = HitboxTab
+hbY = hbY + 20
+
+HitboxTab.Size = UDim2.new(1, 0, 0, hbY + 10)
+
+-- ============================================================
 -- TAB: MISC
 -- ============================================================
 local MiscTab = Instance.new("Frame")
@@ -1202,6 +1398,7 @@ makeButton(MiscTab, {
         for _, conn in ipairs(Settings.TouchConnections) do pcall(function() conn:Disconnect() end) end
         if Settings._FOVCircle then pcall(function() Settings._FOVCircle:Remove() end) end
         for char, _ in pairs(ESP_Cache or {}) do pcall(function() RemoveESP(char) end) end
+        pcall(resetHitboxes)
         ScreenGui:Destroy()
         showNotification = function() end
     end
@@ -1272,12 +1469,47 @@ end
 local MiniDrag = Instance.new("Frame")
 MiniDrag.Size = UDim2.new(1, 0, 1, 0); MiniDrag.BackgroundTransparency = 1
 MiniDrag.Active = true; MiniDrag.ZIndex = 105; MiniDrag.Parent = MiniIcon
-MiniDrag.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
-        Settings.Minimized = false; MiniIcon.Visible = false; MainFrame.Visible = true
-    end
-end)
-makeDraggable(MiniDrag, MiniIcon)
+
+do
+    local miniDragging = false
+    local miniDragStart = nil
+    local miniStartPos = nil
+    local miniDragInput = nil
+    local miniMoved = false
+
+    MiniDrag.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch or
+           input.UserInputType == Enum.UserInputType.MouseButton1 then
+            miniDragging = true
+            miniMoved = false
+            miniDragStart = input.Position
+            miniStartPos = MiniIcon.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    if not miniMoved then
+                        Settings.Minimized = false; MiniIcon.Visible = false; MainFrame.Visible = true
+                    end
+                    miniDragging = false
+                end
+            end)
+        end
+    end)
+    MiniDrag.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch or
+           input.UserInputType == Enum.UserInputType.MouseMovement then
+            miniDragInput = input
+        end
+    end)
+    local miniConn = UserInputService.InputChanged:Connect(function(input)
+        if input == miniDragInput and miniDragging then
+            local delta = input.Position - miniDragStart
+            if delta.Magnitude > 5 then miniMoved = true end
+            MiniIcon.Position = UDim2.new(miniStartPos.X.Scale, miniStartPos.X.Offset + delta.X,
+                miniStartPos.Y.Scale, miniStartPos.Y.Offset + delta.Y)
+        end
+    end)
+    table.insert(Settings._Connections, miniConn)
+end
 
 local minimizeLastClick = 0
 MinimizeBtn.MouseButton1Click:Connect(function()
@@ -1403,24 +1635,26 @@ end
 local function deepScanAllRemotes()
     local found = {}
     local scanned = {}
-    local containers = {ReplicatedStorage, Workspace}
-    pcall(function() table.insert(containers, LocalPlayer.PlayerGui) end)
-    pcall(function() table.insert(containers, game:GetService("ReplicatedFirst")) end)
-    pcall(function() table.insert(containers, game:GetService("ServerScriptService")) end)
-    pcall(function() table.insert(containers, game:GetService("ServerStorage")) end)
-    pcall(function() table.insert(containers, game:GetService("StarterPlayer")) end)
-    pcall(function() table.insert(containers, game:GetService("StarterPack")) end)
-    pcall(function() table.insert(containers, StarterGui) end)
-    pcall(function() table.insert(containers, game:GetService("Lighting")) end)
-    pcall(function() table.insert(containers, game:GetService("SoundService")) end)
 
-    -- scan nil instances too
-    if hasGetNilInstances then
+    -- Priority scan: ReplicatedStorage first (most games store remotes here)
+    local priorityContainers = {ReplicatedStorage}
+    local secondaryContainers = {}
+    pcall(function() table.insert(priorityContainers, Workspace) end)
+    pcall(function() table.insert(secondaryContainers, LocalPlayer.PlayerGui) end)
+    pcall(function() table.insert(secondaryContainers, game:GetService("ReplicatedFirst")) end)
+    pcall(function() table.insert(secondaryContainers, game:GetService("StarterPlayer")) end)
+    pcall(function() table.insert(secondaryContainers, game:GetService("StarterPack")) end)
+    pcall(function() table.insert(secondaryContainers, StarterGui) end)
+    pcall(function() table.insert(secondaryContainers, game:GetService("Lighting")) end)
+
+    local function scanContainer(container)
+        if not container then return end
         pcall(function()
-            for _, obj in ipairs(getnilinstances()) do
-                if (obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction")) then
-                    if not scanned[obj] then
-                        scanned[obj] = true
+            for _, obj in ipairs(container:GetDescendants()) do
+                if not scanned[obj] and (obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction")) then
+                    scanned[obj] = true
+                    table.insert(Settings.AllRemotes, obj)
+                    if isDamageRemoteName(obj.Name) then
                         table.insert(found, obj)
                     end
                 end
@@ -1428,23 +1662,27 @@ local function deepScanAllRemotes()
         end)
     end
 
-    for _, container in ipairs(containers) do
-        if container then
-            pcall(function()
-                for _, obj in ipairs(container:GetDescendants()) do
-                    if not scanned[obj] then
-                        scanned[obj] = true
-                        if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
-                            table.insert(Settings.AllRemotes, obj)
-                            if isDamageRemoteName(obj.Name) then
-                                table.insert(found, obj)
-                            end
-                        end
-                    end
+    -- Scan priority containers first
+    for _, c in ipairs(priorityContainers) do scanContainer(c) end
+
+    -- Scan nil instances
+    if hasGetNilInstances then
+        pcall(function()
+            for _, obj in ipairs(getnilinstances()) do
+                if not scanned[obj] and (obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction")) then
+                    scanned[obj] = true
+                    table.insert(found, obj)
+                    table.insert(Settings.AllRemotes, obj)
                 end
-            end)
-        end
+            end
+        end)
     end
+
+    -- Secondary containers in background
+    task.spawn(function()
+        for _, c in ipairs(secondaryContainers) do scanContainer(c) end
+    end)
+
     return found
 end
 
@@ -3092,6 +3330,69 @@ end)
 table.insert(Settings._Connections, espConn)
 
 -- ============================================================
+-- HITBOX EXPANDER
+-- ============================================================
+local hitboxOriginals = {}
+
+local function resetHitboxes()
+    for part, data in pairs(hitboxOriginals) do
+        pcall(function()
+            if part and part.Parent then
+                part.Size = data.size
+                part.Transparency = data.transparency
+                part.CanCollide = data.canCollide
+            end
+        end)
+    end
+    hitboxOriginals = {}
+end
+
+local hitboxConn = RunService.Heartbeat:Connect(function()
+    if not Settings.HitboxEnabled then
+        if next(hitboxOriginals) then resetHitboxes() end
+        if hbStatusLabel then hbStatusLabel.Text = "Hitbox: OFF" end
+        return
+    end
+
+    local targetSize = Vector3.new(Settings.HitboxX, Settings.HitboxY, Settings.HitboxZ)
+    local trans = Settings.HitboxVisible and Settings.HitboxTransparency or 1
+    local noCollide = not Settings.HitboxCanCollide
+    local count = 0
+
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer and plr.Character then
+            local hum = plr.Character:FindFirstChildOfClass("Humanoid")
+            if hum and hum.Health > 0 then
+                for _, part in ipairs(plr.Character:GetChildren()) do
+                    if part:IsA("BasePart") then
+                        if not hitboxOriginals[part] then
+                            hitboxOriginals[part] = {
+                                size = part.Size,
+                                transparency = part.Transparency,
+                                canCollide = part.CanCollide,
+                            }
+                        end
+                        pcall(function()
+                            part.Size = targetSize
+                            part.Transparency = trans
+                            if noCollide then part.CanCollide = false end
+                        end)
+                        count = count + 1
+                    end
+                end
+            end
+        end
+    end
+
+    if hbStatusLabel then
+        hbStatusLabel.Text = "Hitbox: ON | " .. count .. " parts | " ..
+            Settings.HitboxX .. "x" .. Settings.HitboxY .. "x" .. Settings.HitboxZ
+        hbStatusLabel.TextColor3 = theme.Success
+    end
+end)
+table.insert(Settings._Connections, hitboxConn)
+
+-- ============================================================
 -- MISC FEATURES
 -- ============================================================
 
@@ -3164,7 +3465,7 @@ Players.PlayerRemoving:Connect(function(p) if p.Character and ESP_Cache[p.Charac
 -- ============================================================
 updateMiniIcon()
 showNotification("V10 Ultra loaded!", 3, theme.Success)
-showNotification("24 Aura modes | NPC support", 4, theme.Info)
+showNotification("25 Aura modes | Hitbox | NPC", 4, theme.Info)
 showNotification("Drawing=" .. tostring(hasDrawing) .. " Touch=" .. tostring(hasFireTouchInterest) .. " GC=" .. tostring(hasGetGC), 5, theme.TextDim)
 
-log("V10 Ultra Universal loaded - 24 modes")
+log("V10 Ultra Universal loaded - 25 modes + Hitbox")
