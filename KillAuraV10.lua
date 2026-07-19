@@ -66,6 +66,10 @@ local Settings = {
     CustomCombatRemotes = {},
     HasCustomInventory = false,
 
+    -- Damage Hack
+    DamageHackEnabled = false,
+    DamageMultiplier = 5,
+
     -- Tele Enemy
     TeleEnemyEnabled = false,
     TeleEnemyDistance = 4,
@@ -856,6 +860,25 @@ KillAuraBtn = makeButton(KillAuraTab, {
     end
 })
 auraY = auraY + 42
+
+makeToggle(KillAuraTab, {
+    Position = UDim2.new(0, 10, 0, auraY), Text = "Hack Damage (x Gun)",
+    Default = Settings.DamageHackEnabled, ZIndex = 6,
+    OnChanged = function(v)
+        Settings.DamageHackEnabled = v
+        showNotification("Damage Hack " .. (v and "ON x" .. Settings.DamageMultiplier or "OFF"), 2, v and theme.Success or theme.TextDim)
+    end,
+})
+auraY = auraY + 28
+
+makeSlider(KillAuraTab, {
+    Position = UDim2.new(0, 10, 0, auraY),
+    Text = "Damage x", Min = 2, Max = 50, Default = Settings.DamageMultiplier, Step = 1,
+    FillColor = theme.Danger,
+    Format = function(v) return "x" .. math.floor(v) end,
+    ZIndex = 6, OnChanged = function(v) Settings.DamageMultiplier = math.floor(v) end,
+})
+auraY = auraY + 46
 
 local TeleEnemyBtn
 TeleEnemyBtn = makeToggle(KillAuraTab, {
@@ -3122,6 +3145,53 @@ local function getNPCTargets(myRoot)
         end
     end
     return targets
+end
+
+-- ============================================================
+-- DAMAGE HACK (hookmetamethod - multiply gun damage)
+-- ============================================================
+local damageHookActive = false
+if hasHookMeta then
+    local oldNamecall
+    oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+        local method = getnamecallmethod()
+        if Settings.DamageHackEnabled and (method == "FireServer" or method == "InvokeServer") then
+            if self:IsA("RemoteEvent") or self:IsA("RemoteFunction") then
+                local name = self.Name:lower()
+                local isDamage = name:find("damage") or name:find("hit") or name:find("attack")
+                    or name:find("shoot") or name:find("fire") or name:find("bullet")
+                    or name:find("weapon") or name:find("gun") or name:find("hurt")
+                    or name:find("combat") or name:find("swing") or name:find("slash")
+
+                if not isDamage then
+                    for _, r in ipairs(Settings.AllDamageRemotes) do
+                        if r == self then isDamage = true; break end
+                    end
+                end
+                for rName, _ in pairs(Settings.SpyRemotes) do
+                    if self.Name == rName then isDamage = true; break end
+                end
+
+                if isDamage then
+                    local args = {...}
+                    task.spawn(function()
+                        for i = 1, Settings.DamageMultiplier - 1 do
+                            pcall(function()
+                                if method == "FireServer" then
+                                    self:FireServer(unpack(args))
+                                else
+                                    self:InvokeServer(unpack(args))
+                                end
+                            end)
+                        end
+                    end)
+                end
+            end
+        end
+        return oldNamecall(self, ...)
+    end))
+    damageHookActive = true
+    log("Damage hack hook installed")
 end
 
 -- ============================================================
