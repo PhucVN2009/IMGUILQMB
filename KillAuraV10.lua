@@ -3643,6 +3643,66 @@ local function updateSwordPosition(root, velocity)
     end
 end
 
+-- Mobile fly buttons
+local flyUpHeld = false
+local flyDownHeld = false
+local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+
+local FlyButtonsFrame = Instance.new("Frame")
+FlyButtonsFrame.Size = UDim2.new(0, 60, 0, 130)
+FlyButtonsFrame.Position = UDim2.new(1, -75, 0.5, -65)
+FlyButtonsFrame.BackgroundTransparency = 1
+FlyButtonsFrame.Visible = false
+FlyButtonsFrame.ZIndex = 50
+FlyButtonsFrame.Parent = ScreenGui
+
+local flyUpBtn = Instance.new("TextButton")
+flyUpBtn.Size = UDim2.new(1, 0, 0, 58)
+flyUpBtn.Position = UDim2.new(0, 0, 0, 0)
+flyUpBtn.BackgroundColor3 = Color3.fromRGB(60, 160, 255)
+flyUpBtn.BackgroundTransparency = 0.3
+flyUpBtn.Text = "UP"
+flyUpBtn.TextColor3 = Color3.new(1, 1, 1)
+flyUpBtn.Font = Enum.Font.GothamBold
+flyUpBtn.TextSize = 14
+flyUpBtn.ZIndex = 51
+flyUpBtn.Parent = FlyButtonsFrame
+Instance.new("UICorner", flyUpBtn).CornerRadius = UDim.new(0, 10)
+
+local flyDownBtn = Instance.new("TextButton")
+flyDownBtn.Size = UDim2.new(1, 0, 0, 58)
+flyDownBtn.Position = UDim2.new(0, 0, 0, 68)
+flyDownBtn.BackgroundColor3 = Color3.fromRGB(255, 100, 60)
+flyDownBtn.BackgroundTransparency = 0.3
+flyDownBtn.Text = "DOWN"
+flyDownBtn.TextColor3 = Color3.new(1, 1, 1)
+flyDownBtn.Font = Enum.Font.GothamBold
+flyDownBtn.TextSize = 14
+flyDownBtn.ZIndex = 51
+flyDownBtn.Parent = FlyButtonsFrame
+Instance.new("UICorner", flyDownBtn).CornerRadius = UDim.new(0, 10)
+
+flyUpBtn.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+        flyUpHeld = true
+    end
+end)
+flyUpBtn.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+        flyUpHeld = false
+    end
+end)
+flyDownBtn.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+        flyDownHeld = true
+    end
+end)
+flyDownBtn.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+        flyDownHeld = false
+    end
+end)
+
 local miscConn = RunService.Heartbeat:Connect(function()
     local char = LocalPlayer.Character
     if not char then return end
@@ -3651,6 +3711,9 @@ local miscConn = RunService.Heartbeat:Connect(function()
     if not hum or not root then return end
 
     if Settings.SpeedEnabled then hum.WalkSpeed = Settings.SpeedValue end
+
+    local isFlying = Settings.SwordFlyEnabled or Settings.FlyEnabled
+    FlyButtonsFrame.Visible = isFlying and isMobile
 
     if Settings.SwordFlyEnabled then
         if not swordBV or not swordBV.Parent then
@@ -3662,8 +3725,8 @@ local miscConn = RunService.Heartbeat:Connect(function()
         createSwordModel(root)
         local moveDir = hum.MoveDirection
         local vel = moveDir.Magnitude > 0 and moveDir * Settings.SwordFlySpeed or Vector3.zero
-        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then vel = vel + Vector3.new(0, Settings.SwordFlySpeed, 0) end
-        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then vel = vel - Vector3.new(0, Settings.SwordFlySpeed, 0) end
+        if flyUpHeld or UserInputService:IsKeyDown(Enum.KeyCode.Space) then vel = vel + Vector3.new(0, Settings.SwordFlySpeed, 0) end
+        if flyDownHeld or UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then vel = vel - Vector3.new(0, Settings.SwordFlySpeed, 0) end
         swordBV.Velocity = vel
         swordBG.CFrame = CFrame.lookAt(root.Position, root.Position + (vel.Magnitude > 1 and vel.Unit or root.CFrame.LookVector))
         updateSwordPosition(root, vel)
@@ -3689,8 +3752,8 @@ local miscConn = RunService.Heartbeat:Connect(function()
         end
         local moveDir = hum.MoveDirection
         flyBV.Velocity = moveDir.Magnitude > 0 and moveDir * Settings.FlySpeed or Vector3.zero
-        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then flyBV.Velocity = flyBV.Velocity + Vector3.new(0, Settings.FlySpeed, 0) end
-        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then flyBV.Velocity = flyBV.Velocity - Vector3.new(0, Settings.FlySpeed, 0) end
+        if flyUpHeld or UserInputService:IsKeyDown(Enum.KeyCode.Space) then flyBV.Velocity = flyBV.Velocity + Vector3.new(0, Settings.FlySpeed, 0) end
+        if flyDownHeld or UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then flyBV.Velocity = flyBV.Velocity - Vector3.new(0, Settings.FlySpeed, 0) end
         flyBG.CFrame = Camera.CFrame
     elseif not Settings.FlyEnabled then
         if flyBV and flyBV.Parent then flyBV:Destroy(); flyBV = nil end
