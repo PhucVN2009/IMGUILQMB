@@ -116,6 +116,13 @@ local Settings = {
     AntiVoid = false,
     NoClip = false,
 
+    -- Dupe Item
+    DupeMode = "DropDie",
+    DupeCount = 1,
+    DupeAutoPickup = true,
+    _DupeSavedTools = {},
+    _DupeInProgress = false,
+
     -- UI
     Minimized = false,
     CurrentTab = "KillAura",
@@ -1531,6 +1538,413 @@ makeButton(MiscTab, {
     end
 })
 miscY = miscY + 40
+
+-- Dupe Item separator
+local dupeSep = Instance.new("Frame")
+dupeSep.Size = UDim2.new(1, -20, 0, 2); dupeSep.Position = UDim2.new(0, 10, 0, miscY)
+dupeSep.BackgroundColor3 = theme.Warning; dupeSep.BorderSizePixel = 0; dupeSep.ZIndex = 6; dupeSep.Parent = MiscTab
+miscY = miscY + 8
+
+local dupeTitle = Instance.new("TextLabel")
+dupeTitle.Size = UDim2.new(1, -20, 0, 16); dupeTitle.Position = UDim2.new(0, 10, 0, miscY)
+dupeTitle.BackgroundTransparency = 1; dupeTitle.Text = "-- Dupe Item --"
+dupeTitle.TextColor3 = theme.Warning; dupeTitle.Font = Enum.Font.GothamBold
+dupeTitle.TextSize = 12; dupeTitle.TextXAlignment = Enum.TextXAlignment.Center
+dupeTitle.ZIndex = 6; dupeTitle.Parent = MiscTab
+miscY = miscY + 20
+
+local dupeInfo = Instance.new("TextLabel")
+dupeInfo.Size = UDim2.new(1, -20, 0, 22)
+dupeInfo.Position = UDim2.new(0, 10, 0, miscY)
+dupeInfo.BackgroundTransparency = 1
+dupeInfo.Text = "Equip item can nhan doi truoc khi bam Dupe"
+dupeInfo.TextColor3 = theme.TextDim; dupeInfo.Font = Enum.Font.Gotham
+dupeInfo.TextSize = 9; dupeInfo.TextXAlignment = Enum.TextXAlignment.Left
+dupeInfo.TextWrapped = true; dupeInfo.ZIndex = 6; dupeInfo.Parent = MiscTab
+miscY = miscY + 22
+
+local dupeModeLabel = Instance.new("TextLabel")
+dupeModeLabel.Size = UDim2.new(1, -20, 0, 14)
+dupeModeLabel.Position = UDim2.new(0, 10, 0, miscY)
+dupeModeLabel.BackgroundTransparency = 1; dupeModeLabel.Text = "Dupe Mode:"
+dupeModeLabel.TextColor3 = theme.TextDim; dupeModeLabel.Font = Enum.Font.Gotham
+dupeModeLabel.TextSize = 11; dupeModeLabel.TextXAlignment = Enum.TextXAlignment.Left
+dupeModeLabel.ZIndex = 6; dupeModeLabel.Parent = MiscTab
+miscY = miscY + 16
+
+makeDropdown(MiscTab, {
+    Size = UDim2.new(1, -20, 0, 26), Position = UDim2.new(0, 10, 0, miscY),
+    Default = Settings.DupeMode,
+    Options = {"DropDie", "NilSave", "SwapSpam", "DropPickup", "AllMethods"},
+    ZIndex = 6,
+    OnChanged = function(v) Settings.DupeMode = v end,
+})
+miscY = miscY + 34
+
+makeSlider(MiscTab, {
+    Position = UDim2.new(0, 10, 0, miscY), Text = "Dupe Count",
+    Min = 1, Max = 10, Default = Settings.DupeCount, Step = 1,
+    FillColor = theme.Warning, ZIndex = 6,
+    OnChanged = function(v) Settings.DupeCount = math.floor(v) end,
+})
+miscY = miscY + 48
+
+makeToggle(MiscTab, {
+    Position = UDim2.new(0, 10, 0, miscY), Text = "Auto Pickup",
+    Default = Settings.DupeAutoPickup, ZIndex = 6,
+    OnChanged = function(v) Settings.DupeAutoPickup = v end,
+})
+miscY = miscY + 32
+
+local dupeStatusLabel = Instance.new("TextLabel")
+dupeStatusLabel.Size = UDim2.new(1, -20, 0, 14)
+dupeStatusLabel.Position = UDim2.new(0, 10, 0, miscY)
+dupeStatusLabel.BackgroundTransparency = 1
+dupeStatusLabel.Text = "Status: San sang"
+dupeStatusLabel.TextColor3 = theme.TextDim; dupeStatusLabel.Font = Enum.Font.Gotham
+dupeStatusLabel.TextSize = 10; dupeStatusLabel.TextXAlignment = Enum.TextXAlignment.Left
+dupeStatusLabel.ZIndex = 6; dupeStatusLabel.Parent = MiscTab
+miscY = miscY + 18
+
+-- ===== DUPE ITEM LOGIC =====
+local function getAllPlayerTools()
+    local tools = {}
+    local char = LocalPlayer.Character
+    local backpack = LocalPlayer:FindFirstChildWhichIsA("Backpack")
+    if char then
+        for _, obj in ipairs(char:GetChildren()) do
+            if obj:IsA("Tool") then table.insert(tools, obj) end
+        end
+    end
+    if backpack then
+        for _, obj in ipairs(backpack:GetChildren()) do
+            if obj:IsA("Tool") then table.insert(tools, obj) end
+        end
+    end
+    return tools
+end
+
+local function pickupDroppedTools(dropPos, radius)
+    radius = radius or 30
+    task.spawn(function()
+        task.wait(0.5)
+        local char = LocalPlayer.Character
+        if not char then return end
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if not root then return end
+
+        for _, obj in ipairs(Workspace:GetChildren()) do
+            if obj:IsA("Tool") then
+                local handle = obj:FindFirstChild("Handle")
+                if handle then
+                    local dist = (handle.Position - dropPos).Magnitude
+                    if dist < radius then
+                        pcall(function() obj.Parent = LocalPlayer.Backpack end)
+                    end
+                end
+            end
+        end
+        for _, obj in ipairs(Workspace:GetDescendants()) do
+            if obj:IsA("Tool") and not obj.Parent:IsA("Model") then
+                local handle = obj:FindFirstChild("Handle")
+                if handle then
+                    local dist = (handle.Position - dropPos).Magnitude
+                    if dist < radius then
+                        pcall(function() obj.Parent = LocalPlayer.Backpack end)
+                    end
+                end
+            end
+        end
+    end)
+end
+
+local function dupeDropDie()
+    local char = LocalPlayer.Character
+    if not char then return false end
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not humanoid or not root then return false end
+
+    local tools = getAllPlayerTools()
+    if #tools == 0 then
+        showNotification("Khong co item de dupe!", 3, theme.Danger)
+        return false
+    end
+
+    local dropPos = root.Position + Vector3.new(0, 3, 0)
+    dupeStatusLabel.Text = "Dang drop " .. #tools .. " item..."
+    dupeStatusLabel.TextColor3 = theme.Warning
+
+    for _, tool in ipairs(tools) do
+        pcall(function()
+            tool.Parent = char
+            task.wait(0.05)
+            tool.Parent = Workspace
+            if tool:FindFirstChild("Handle") then
+                tool.Handle.CFrame = CFrame.new(dropPos)
+                tool.Handle.Anchored = true
+            end
+        end)
+    end
+
+    task.wait(0.1)
+    dupeStatusLabel.Text = "Dang chet de dupe..."
+    humanoid.Health = 0
+
+    local newChar = LocalPlayer.CharacterAdded:Wait()
+    task.wait(1.5)
+
+    if Settings.DupeAutoPickup then
+        dupeStatusLabel.Text = "Dang nhat item..."
+        local newRoot = newChar:FindFirstChild("HumanoidRootPart")
+        if newRoot then
+            local oldCF = newRoot.CFrame
+            newRoot.CFrame = CFrame.new(dropPos)
+            task.wait(0.3)
+
+            for _, obj in ipairs(Workspace:GetChildren()) do
+                if obj:IsA("Tool") then
+                    local handle = obj:FindFirstChild("Handle")
+                    if handle then
+                        pcall(function() handle.Anchored = false end)
+                        local dist = (handle.Position - dropPos).Magnitude
+                        if dist < 50 then
+                            pcall(function() obj.Parent = LocalPlayer.Backpack end)
+                        end
+                    end
+                end
+            end
+            task.wait(0.3)
+            pcall(function()
+                for _, obj in ipairs(Workspace:GetChildren()) do
+                    if obj:IsA("Tool") then
+                        local handle = obj:FindFirstChild("Handle")
+                        if handle and (handle.Position - dropPos).Magnitude < 50 then
+                            pcall(function() handle.Anchored = false end)
+                            if hasFireTouchInterest and newRoot then
+                                pcall(function()
+                                    firetouchinterest(newRoot, handle, 0)
+                                    task.wait(0.05)
+                                    firetouchinterest(newRoot, handle, 1)
+                                end)
+                            end
+                        end
+                    end
+                end
+            end)
+            task.wait(0.5)
+            newRoot.CFrame = oldCF
+        end
+    else
+        for _, obj in ipairs(Workspace:GetChildren()) do
+            if obj:IsA("Tool") and obj:FindFirstChild("Handle") then
+                pcall(function() obj.Handle.Anchored = false end)
+            end
+        end
+    end
+
+    return true
+end
+
+local function dupeNilSave()
+    local char = LocalPlayer.Character
+    if not char then return false end
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    if not humanoid then return false end
+
+    local tools = getAllPlayerTools()
+    if #tools == 0 then
+        showNotification("Khong co item de dupe!", 3, theme.Danger)
+        return false
+    end
+
+    dupeStatusLabel.Text = "Dang luu " .. #tools .. " item vao nil..."
+    dupeStatusLabel.TextColor3 = theme.Warning
+
+    local saved = {}
+    for _, tool in ipairs(tools) do
+        pcall(function()
+            local clone = tool:Clone()
+            table.insert(saved, clone)
+        end)
+    end
+
+    if #saved == 0 then
+        showNotification("Khong clone duoc item!", 3, theme.Danger)
+        return false
+    end
+
+    dupeStatusLabel.Text = "Dang chet..."
+    humanoid.Health = 0
+
+    local newChar = LocalPlayer.CharacterAdded:Wait()
+    task.wait(2)
+
+    dupeStatusLabel.Text = "Dang them item clone..."
+    local newBackpack = LocalPlayer:FindFirstChildWhichIsA("Backpack")
+    for _, tool in ipairs(saved) do
+        pcall(function()
+            tool.Parent = newBackpack or newChar
+        end)
+    end
+
+    return true
+end
+
+local function dupeSwapSpam()
+    local char = LocalPlayer.Character
+    if not char then return false end
+    local backpack = LocalPlayer:FindFirstChildWhichIsA("Backpack")
+    if not backpack then return false end
+
+    local tools = getAllPlayerTools()
+    if #tools == 0 then
+        showNotification("Khong co item de dupe!", 3, theme.Danger)
+        return false
+    end
+
+    dupeStatusLabel.Text = "Dang swap spam..."
+    dupeStatusLabel.TextColor3 = theme.Warning
+
+    for _, tool in ipairs(tools) do
+        task.spawn(function()
+            for i = 1, 30 do
+                pcall(function()
+                    tool.Parent = char
+                    tool.Parent = backpack
+                    tool.Parent = char
+                    tool.Parent = nil
+                    tool.Parent = backpack
+                end)
+                task.wait()
+            end
+        end)
+    end
+    task.wait(1)
+    return true
+end
+
+local function dupeDropPickup()
+    local char = LocalPlayer.Character
+    if not char then return false end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    if not root or not humanoid then return false end
+
+    local tools = getAllPlayerTools()
+    if #tools == 0 then
+        showNotification("Khong co item de dupe!", 3, theme.Danger)
+        return false
+    end
+
+    dupeStatusLabel.Text = "Dang drop + pickup nhanh..."
+    dupeStatusLabel.TextColor3 = theme.Warning
+
+    local dropPos = root.Position + Vector3.new(0, 2, 0)
+
+    for _, tool in ipairs(tools) do
+        task.spawn(function()
+            for i = 1, 15 do
+                pcall(function()
+                    tool.Parent = char
+                    task.wait()
+                    local clone = tool:Clone()
+                    tool.Parent = Workspace
+                    if tool:FindFirstChild("Handle") then
+                        tool.Handle.CFrame = CFrame.new(dropPos)
+                    end
+                    clone.Parent = LocalPlayer.Backpack
+                    task.wait(0.05)
+                    pcall(function() tool.Parent = LocalPlayer.Backpack end)
+                end)
+                task.wait(0.05)
+            end
+        end)
+    end
+
+    task.wait(1)
+
+    if Settings.DupeAutoPickup then
+        for _, obj in ipairs(Workspace:GetChildren()) do
+            if obj:IsA("Tool") then
+                local handle = obj:FindFirstChild("Handle")
+                if handle and (handle.Position - dropPos).Magnitude < 50 then
+                    pcall(function() obj.Parent = LocalPlayer.Backpack end)
+                end
+            end
+        end
+    end
+
+    return true
+end
+
+local function executeDupe()
+    if Settings._DupeInProgress then
+        showNotification("Dang dupe, doi chut!", 2, theme.Warning)
+        return
+    end
+    Settings._DupeInProgress = true
+
+    task.spawn(function()
+        local mode = Settings.DupeMode
+        local count = Settings.DupeCount
+        local success = false
+        local totalDuped = 0
+
+        for i = 1, count do
+            dupeStatusLabel.Text = "Dupe lan " .. i .. "/" .. count .. "..."
+            dupeStatusLabel.TextColor3 = theme.Warning
+
+            local ok = false
+            if mode == "DropDie" then
+                ok = dupeDropDie()
+            elseif mode == "NilSave" then
+                ok = dupeNilSave()
+            elseif mode == "SwapSpam" then
+                ok = dupeSwapSpam()
+            elseif mode == "DropPickup" then
+                ok = dupeDropPickup()
+            elseif mode == "AllMethods" then
+                ok = dupeDropDie()
+                if not ok then ok = dupeNilSave() end
+                if not ok then ok = dupeSwapSpam() end
+                if not ok then ok = dupeDropPickup() end
+            end
+
+            if ok then
+                totalDuped = totalDuped + 1
+                success = true
+            end
+
+            if i < count then task.wait(2) end
+        end
+
+        if success then
+            dupeStatusLabel.Text = "Dupe xong! (" .. totalDuped .. "/" .. count .. " lan)"
+            dupeStatusLabel.TextColor3 = theme.Success
+            showNotification("Dupe thanh cong " .. totalDuped .. " lan! Check backpack", 4, theme.Success)
+        else
+            dupeStatusLabel.Text = "Dupe that bai! Thu mode khac"
+            dupeStatusLabel.TextColor3 = theme.Danger
+            showNotification("Dupe that bai - game nay co the da patch", 4, theme.Danger)
+        end
+
+        Settings._DupeInProgress = false
+    end)
+end
+
+local DupeBtn = makeButton(MiscTab, {
+    Size = UDim2.new(0.92, 0, 0, 38),
+    Position = UDim2.new(0.04, 0, 0, miscY),
+    Color = theme.Warning, Text = "DUPE ITEM", TextSize = 14, ZIndex = 6,
+    Callback = executeDupe,
+})
+miscY = miscY + 44
+
+local dupeEndSep = Instance.new("Frame")
+dupeEndSep.Size = UDim2.new(1, -20, 0, 2); dupeEndSep.Position = UDim2.new(0, 10, 0, miscY)
+dupeEndSep.BackgroundColor3 = theme.SurfaceLight; dupeEndSep.BorderSizePixel = 0; dupeEndSep.ZIndex = 6; dupeEndSep.Parent = MiscTab
+miscY = miscY + 10
 
 makeButton(MiscTab, {
     Size = UDim2.new(0.92, 0, 0, 32),
