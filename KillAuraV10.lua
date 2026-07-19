@@ -61,6 +61,10 @@ local Settings = {
     ModuleFunctions = {},
     TouchConnections = {},
     DetectedGameType = "Unknown",
+    CustomWeapons = {},
+    HotbarRemotes = {},
+    CustomCombatRemotes = {},
+    HasCustomInventory = false,
 
     -- Aimbot
     AimbotEnabled = false,
@@ -919,6 +923,7 @@ local AuraModeDropdown = makeDropdown(KillAuraTab, {
         "GodModeKill",        -- 22. God mode + fling
         "AllToolsSpam",       -- 23. Equip + activate ALL tools
         "BruteForceAll",      -- 24. Thu TAT CA methods
+        "CustomSystem",       -- 25. Custom inventory/hotbar games
     },
     MaxVisibleOptions = 6,
     ZIndex = 6,
@@ -1527,9 +1532,13 @@ function scanRemotes()
         end
     end
 
+    -- Scan custom inventory/combat systems
+    scanCustomSystems()
+
     -- Detect game type
     local gameType = detectGameType()
-    GameTypeLabel.Text = "Game: " .. gameType .. " | Remotes: " .. #Settings.AllRemotes
+    local customInfo = Settings.HasCustomInventory and " [CUSTOM]" or ""
+    GameTypeLabel.Text = "Game: " .. gameType .. customInfo .. " | R:" .. #Settings.AllRemotes
     GameTypeLabel.TextColor3 = theme.Info
 
     local spyCount = 0
@@ -1542,13 +1551,17 @@ function scanRemotes()
     elseif totalRemotes > 0 then
         StatusLabel.Text = "Generic (" .. totalRemotes .. " remotes)"
         StatusLabel.TextColor3 = theme.Warning
+    elseif Settings.HasCustomInventory and #Settings.HotbarRemotes > 0 then
+        StatusLabel.Text = "Custom System (" .. #Settings.HotbarRemotes .. " hotbar)"
+        StatusLabel.TextColor3 = theme.Info
     else
         StatusLabel.Text = "No remote - fire weapon to learn"
         StatusLabel.TextColor3 = theme.Danger
     end
 
-    SpyStatusLabel.Text = "Spy: " .. spyCount .. " | Scan: " .. #allDamage .. " | All: " .. #Settings.AllRemotes
-    log("Scan: " .. #allDamage .. " damage, " .. #Settings.AllRemotes .. " total, " .. spyCount .. " spy, type=" .. gameType)
+    SpyStatusLabel.Text = "Spy:" .. spyCount .. " Scan:" .. #allDamage .. " Cust:" .. #Settings.HotbarRemotes .. " All:" .. #Settings.AllRemotes
+    log("Scan: " .. #allDamage .. " damage, " .. #Settings.AllRemotes .. " total, " .. spyCount .. " spy, " ..
+        #Settings.HotbarRemotes .. " hotbar, " .. #Settings.CustomCombatRemotes .. " framework, type=" .. gameType)
 end
 
 task.spawn(scanRemotes)
@@ -1569,6 +1582,33 @@ local function findWeapon()
             if tool then pcall(function() tool.Parent = LocalPlayer.Character end); return tool end
         end
     end
+    -- Check custom weapon folders (games that store weapons in non-standard locations)
+    if Settings.AutoWeaponEquip then
+        local weaponFolders = {"Weapons", "Items", "Equipment", "Loadout", "Arsenal"}
+        for _, folderName in ipairs(weaponFolders) do
+            pcall(function()
+                local folder = LocalPlayer:FindFirstChild(folderName)
+                if folder then
+                    local tool = folder:FindFirstChildOfClass("Tool")
+                    if tool then
+                        pcall(function() tool.Parent = LocalPlayer.Character end)
+                        return tool
+                    end
+                end
+            end)
+        end
+        -- Check StarterPack clones
+        pcall(function()
+            local sp = game:GetService("StarterPack")
+            for _, tool in ipairs(sp:GetChildren()) do
+                if tool:IsA("Tool") then
+                    local clone = tool:Clone()
+                    clone.Parent = LocalPlayer.Character
+                    return clone
+                end
+            end
+        end)
+    end
     return nil
 end
 
@@ -1587,6 +1627,383 @@ local function findAllTools()
         end
     end
     return tools
+end
+
+-- ============================================================
+-- CUSTOM INVENTORY/HOTBAR SYSTEM DETECTION
+-- Games that don't use default Roblox Backpack/Tool system
+-- ============================================================
+
+local COMBAT_REMOTE_KEYWORDS = {
+    "attack", "swing", "slash", "punch", "kick", "hit", "strike",
+    "combat", "fight", "use", "activate", "ability", "skill",
+    "weapon", "equip", "m1", "m2", "click", "light", "heavy",
+    "basic", "combo", "action", "cast", "spell", "throw",
+    "shoot", "fire", "damage", "hurt", "block", "parry",
+    "dodge", "dash", "barrage", "rush", "special", "ultimate",
+    "ult", "z", "x", "c", "v", "e", "f", "q", "r",
+    "input", "keybind", "hotbar", "slot", "useskill",
+    "useability", "useweapon", "attackremote", "combatremote",
+    "swingremote", "meleeattack", "rangedattack",
+}
+
+local function isLikelyCombatRemote(name)
+    local lower = name:lower()
+    for _, kw in ipairs(COMBAT_REMOTE_KEYWORDS) do
+        if lower:find(kw, 1, true) then return true end
+    end
+    return false
+end
+
+local function findCustomWeapons()
+    local customWeapons = {}
+
+    -- Scan PlayerGui for custom hotbar/inventory UI elements
+    pcall(function()
+        local gui = LocalPlayer:FindFirstChild("PlayerGui")
+        if gui then
+            for _, desc in ipairs(gui:GetDescendants()) do
+                -- Look for ViewportFrame items (3D weapon previews in custom hotbars)
+                if desc:IsA("ViewportFrame") then
+                    local parent = desc.Parent
+                    if parent and (parent:IsA("ImageButton") or parent:IsA("TextButton") or parent:IsA("Frame")) then
+                        table.insert(customWeapons, {
+                            type = "UISlot",
+                            button = parent,
+                            name = parent.Name,
+                            source = "PlayerGui"
+                        })
+                    end
+                end
+                -- Look for buttons with weapon/skill names
+                if (desc:IsA("TextButton") or desc:IsA("ImageButton")) then
+                    local nameLower = desc.Name:lower()
+                    if nameLower:find("slot") or nameLower:find("weapon") or nameLower:find("skill")
+                       or nameLower:find("ability") or nameLower:find("attack") or nameLower:find("hotbar")
+                       or nameLower:find("item") or nameLower:find("equip") or nameLower:find("tool")
+                       or nameLower:find("btn") or nameLower:find("action") then
+                        table.insert(customWeapons, {
+                            type = "UIButton",
+                            button = desc,
+                            name = desc.Name,
+                            source = "PlayerGui"
+                        })
+                    end
+                end
+            end
+        end
+    end)
+
+    -- Scan for weapon models in character that aren't Tools
+    pcall(function()
+        local char = LocalPlayer.Character
+        if char then
+            for _, obj in ipairs(char:GetChildren()) do
+                if obj:IsA("Model") and not obj:IsA("Tool") then
+                    local handle = obj:FindFirstChild("Handle") or obj:FindFirstChildWhichIsA("BasePart")
+                    if handle then
+                        table.insert(customWeapons, {
+                            type = "CharModel",
+                            model = obj,
+                            handle = handle,
+                            name = obj.Name,
+                            source = "Character"
+                        })
+                    end
+                end
+                if obj:IsA("Accessory") then
+                    local handle = obj:FindFirstChild("Handle")
+                    if handle and handle:FindFirstChild("TouchInterest") then
+                        table.insert(customWeapons, {
+                            type = "WeaponAccessory",
+                            accessory = obj,
+                            handle = handle,
+                            name = obj.Name,
+                            source = "Character"
+                        })
+                    end
+                end
+            end
+        end
+    end)
+
+    -- Scan ReplicatedStorage for weapon data/models
+    pcall(function()
+        for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
+            if obj:IsA("Model") or obj:IsA("Tool") then
+                local nameLower = obj.Name:lower()
+                if nameLower:find("weapon") or nameLower:find("sword") or nameLower:find("gun")
+                   or nameLower:find("blade") or nameLower:find("staff") or nameLower:find("bow") then
+                    table.insert(customWeapons, {
+                        type = "StoredWeapon",
+                        object = obj,
+                        name = obj.Name,
+                        source = "ReplicatedStorage"
+                    })
+                end
+            end
+        end
+    end)
+
+    -- Check for custom "Weapons" or "Items" folder in player
+    pcall(function()
+        local weaponFolders = {"Weapons", "Items", "Inventory", "Equipment", "Skills", "Abilities", "Loadout", "Arsenal"}
+        for _, folderName in ipairs(weaponFolders) do
+            local folder = LocalPlayer:FindFirstChild(folderName)
+                or LocalPlayer.Character and LocalPlayer.Character:FindFirstChild(folderName)
+            if folder then
+                for _, item in ipairs(folder:GetChildren()) do
+                    table.insert(customWeapons, {
+                        type = "CustomFolder",
+                        object = item,
+                        name = item.Name,
+                        folder = folderName,
+                        source = "CustomFolder:" .. folderName
+                    })
+                end
+            end
+        end
+    end)
+
+    Settings.CustomWeapons = customWeapons
+    Settings.HasCustomInventory = #customWeapons > 0 or
+        (not LocalPlayer:FindFirstChildWhichIsA("Backpack") or #LocalPlayer.Backpack:GetChildren() == 0)
+    return customWeapons
+end
+
+local function findHotbarRemotes()
+    local hotbarRemotes = {}
+
+    -- Method 1: Scan for RemoteEvents with combat-related names
+    pcall(function()
+        for _, remote in ipairs(Settings.AllRemotes) do
+            if remote:IsA("RemoteEvent") and isLikelyCombatRemote(remote.Name) then
+                table.insert(hotbarRemotes, remote)
+            end
+        end
+    end)
+
+    -- Method 2: Use getconnections to find remotes connected to UI buttons
+    if hasGetConnections then
+        pcall(function()
+            local gui = LocalPlayer:FindFirstChild("PlayerGui")
+            if gui then
+                for _, desc in ipairs(gui:GetDescendants()) do
+                    if desc:IsA("TextButton") or desc:IsA("ImageButton") then
+                        local connections = getconnections(desc.Activated) or {}
+                        for _, conn in ipairs(connections) do
+                            pcall(function()
+                                local func = conn.Function or conn.function_
+                                if func then
+                                    table.insert(hotbarRemotes, {
+                                        type = "ButtonConnection",
+                                        button = desc,
+                                        fire = function()
+                                            pcall(function() conn:Fire() end)
+                                        end
+                                    })
+                                end
+                            end)
+                        end
+                        local connections2 = getconnections(desc.MouseButton1Click) or {}
+                        for _, conn in ipairs(connections2) do
+                            pcall(function()
+                                table.insert(hotbarRemotes, {
+                                    type = "ButtonConnection",
+                                    button = desc,
+                                    fire = function()
+                                        pcall(function() conn:Fire() end)
+                                    end
+                                })
+                            end)
+                        end
+                    end
+                end
+            end
+        end)
+    end
+
+    -- Method 3: getgc to find combat-related functions
+    if hasGetGC then
+        pcall(function()
+            for _, v in ipairs(getgc(true)) do
+                if type(v) == "table" then
+                    for key, func in pairs(v) do
+                        if type(key) == "string" and type(func) == "function" then
+                            local keyLower = key:lower()
+                            if keyLower == "attack" or keyLower == "swing" or keyLower == "m1"
+                               or keyLower == "lightattack" or keyLower == "heavyattack"
+                               or keyLower == "basicattack" or keyLower == "combatattack"
+                               or keyLower == "useweapon" or keyLower == "slash"
+                               or keyLower == "punchattack" or keyLower == "kickattack" then
+                                table.insert(hotbarRemotes, {
+                                    type = "GCFunction",
+                                    name = key,
+                                    fire = function()
+                                        pcall(func)
+                                    end
+                                })
+                            end
+                        end
+                    end
+                end
+            end
+        end)
+    end
+
+    -- Method 4: Scan for BindableEvents that trigger attacks
+    pcall(function()
+        local containers = {ReplicatedStorage, LocalPlayer:FindFirstChild("PlayerScripts")}
+        for _, container in ipairs(containers) do
+            if container then
+                for _, obj in ipairs(container:GetDescendants()) do
+                    if obj:IsA("BindableEvent") and isLikelyCombatRemote(obj.Name) then
+                        table.insert(hotbarRemotes, {
+                            type = "BindableEvent",
+                            event = obj,
+                            name = obj.Name,
+                            fire = function()
+                                pcall(function() obj:Fire() end)
+                            end
+                        })
+                    end
+                end
+            end
+        end
+    end)
+
+    Settings.HotbarRemotes = hotbarRemotes
+    return hotbarRemotes
+end
+
+local function simulateCustomAttack(t, targetPart, myRoot)
+    local dir = (targetPart.Position - myRoot.Position).Unit
+    local success = false
+
+    -- 1. Fire all discovered hotbar/combat remotes
+    for _, entry in ipairs(Settings.HotbarRemotes) do
+        task.spawn(function()
+            if entry.fire then
+                pcall(entry.fire)
+                success = true
+            elseif entry:IsA("RemoteEvent") then
+                -- Try multiple arg patterns for custom combat systems
+                pcall(function() entry:FireServer() end)
+                pcall(function() entry:FireServer("Attack") end)
+                pcall(function() entry:FireServer(targetPart.Position) end)
+                pcall(function() entry:FireServer(targetPart, dir) end)
+                pcall(function() entry:FireServer("M1") end)
+                pcall(function() entry:FireServer("LightAttack") end)
+                pcall(function() entry:FireServer(1) end)
+                pcall(function() entry:FireServer(true) end)
+                pcall(function() entry:FireServer({Position = targetPart.Position, Direction = dir}) end)
+                pcall(function() entry:FireServer(targetPart.Parent) end)
+                pcall(function() entry:FireServer(CFrame.lookAt(myRoot.Position, targetPart.Position)) end)
+                pcall(function() entry:FireServer("Swing", targetPart.Position) end)
+                pcall(function() entry:FireServer("Hit", targetPart, t.humanoid) end)
+                pcall(function() entry:FireServer(targetPart.Parent.Name) end)
+                success = true
+            end
+        end)
+    end
+
+    -- 2. Simulate UI button clicks on custom hotbar
+    for _, weapon in ipairs(Settings.CustomWeapons) do
+        task.spawn(function()
+            if weapon.type == "UISlot" or weapon.type == "UIButton" then
+                pcall(function()
+                    -- Fire virtual input on the button
+                    if hasGetConnections then
+                        local btn = weapon.button
+                        local conns = getconnections(btn.Activated)
+                        for _, conn in ipairs(conns or {}) do pcall(function() conn:Fire() end) end
+                        local conns2 = getconnections(btn.MouseButton1Click)
+                        for _, conn in ipairs(conns2 or {}) do pcall(function() conn:Fire() end) end
+                    end
+                end)
+                success = true
+            elseif weapon.type == "CharModel" or weapon.type == "WeaponAccessory" then
+                -- Touch the target with the weapon part
+                local handle = weapon.handle
+                if handle and hasFireTouchInterest then
+                    pcall(function()
+                        firetouchinterest(handle, targetPart, 0)
+                        task.wait()
+                        firetouchinterest(handle, targetPart, 1)
+                    end)
+                    success = true
+                end
+            end
+        end)
+    end
+
+    -- 3. Fire UserInputService simulation for attack keybinds
+    pcall(function()
+        -- Many custom systems listen for specific key inputs
+        local viu = game:GetService("VirtualInputManager")
+        if viu then
+            pcall(function() viu:SendMouseButtonEvent(0, 0, 0, true, game, 0) end)
+            task.wait(0.02)
+            pcall(function() viu:SendMouseButtonEvent(0, 0, 0, false, game, 0) end)
+        end
+    end)
+
+    -- 4. Try firing all combat-keyword remotes with no args (many custom systems just need :FireServer())
+    if not success then
+        for _, remote in ipairs(Settings.AllRemotes) do
+            if remote:IsA("RemoteEvent") and isLikelyCombatRemote(remote.Name) then
+                task.spawn(function()
+                    pcall(function() remote:FireServer() end)
+                    pcall(function() remote:FireServer(targetPart.Position) end)
+                    pcall(function() remote:FireServer(targetPart, dir) end)
+                    pcall(function() remote:FireServer("Attack", targetPart.Position, dir) end)
+                end)
+            end
+        end
+    end
+
+    return success
+end
+
+-- Scan for custom combat systems (run once on init + periodically)
+local function scanCustomSystems()
+    findCustomWeapons()
+    findHotbarRemotes()
+
+    -- Check for common custom frameworks
+    pcall(function()
+        local customFrameworks = {
+            {path = "ReplicatedStorage.Modules.Combat", method = "CustomCombat"},
+            {path = "ReplicatedStorage.Combat", method = "CustomCombat"},
+            {path = "ReplicatedStorage.Systems.Combat", method = "CustomCombat"},
+            {path = "ReplicatedStorage.Shared.Combat", method = "CustomCombat"},
+            {path = "ReplicatedStorage.Framework", method = "CustomFramework"},
+            {path = "ReplicatedStorage.Knit", method = "KnitFramework"},
+            {path = "ReplicatedStorage.Packages", method = "WallyPackage"},
+        }
+        for _, fw in ipairs(customFrameworks) do
+            local parts = fw.path:split(".")
+            local current = game
+            local found = true
+            for _, part in ipairs(parts) do
+                current = current:FindFirstChild(part)
+                if not current then found = false; break end
+            end
+            if found and current then
+                -- Scan this framework folder for remotes
+                for _, obj in ipairs(current:GetDescendants()) do
+                    if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
+                        table.insert(Settings.CustomCombatRemotes, obj)
+                    end
+                end
+            end
+        end
+    end)
+
+    log("Custom scan: " .. #Settings.CustomWeapons .. " weapons, " ..
+        #Settings.HotbarRemotes .. " hotbar remotes, " ..
+        #Settings.CustomCombatRemotes .. " framework remotes, " ..
+        "hasCustomInv=" .. tostring(Settings.HasCustomInventory))
 end
 
 local function isVisible(targetPart)
@@ -2139,6 +2556,7 @@ local function bruteForceAllAttack(t, targetPart, weapon, myRoot)
     task.spawn(function() pcall(function() animationAbuseAttack(t, targetPart, weapon, myRoot) end) end)
     task.spawn(function() pcall(function() velocityKillAttack(t, targetPart, weapon, myRoot) end) end)
     task.spawn(function() pcall(function() moduleExploitAttack(t, targetPart, weapon, myRoot) end) end)
+    task.spawn(function() pcall(function() simulateCustomAttack(t, targetPart, myRoot) end) end)
 
     -- fire ALL remotes with ALL signatures
     local dir = (targetPart.Position - myRoot.Position).Unit
@@ -2160,19 +2578,100 @@ local function bruteForceAllAttack(t, targetPart, weapon, myRoot)
     end
 end
 
+-- 25. Custom System Attack - for games with custom inventory/hotbar
+local function customSystemAttack(t, targetPart, weapon, myRoot)
+    local dir = (targetPart.Position - myRoot.Position).Unit
+
+    -- Re-scan if we haven't found custom weapons yet
+    if #Settings.HotbarRemotes == 0 and #Settings.CustomWeapons == 0 then
+        scanCustomSystems()
+    end
+
+    -- Fire all custom combat system remotes
+    simulateCustomAttack(t, targetPart, myRoot)
+
+    -- Also fire custom framework remotes with combat signatures
+    for _, remote in ipairs(Settings.CustomCombatRemotes) do
+        task.spawn(function()
+            if remote:IsA("RemoteEvent") then
+                pcall(function() remote:FireServer() end)
+                pcall(function() remote:FireServer("Attack") end)
+                pcall(function() remote:FireServer(targetPart.Position) end)
+                pcall(function() remote:FireServer(targetPart, dir) end)
+                pcall(function() remote:FireServer(t.humanoid, 100) end)
+                pcall(function() remote:FireServer("M1", targetPart.Position) end)
+                pcall(function() remote:FireServer({Action = "Attack", Target = targetPart.Parent, Position = targetPart.Position}) end)
+                pcall(function() remote:FireServer(CFrame.lookAt(myRoot.Position, targetPart.Position)) end)
+                pcall(function() remote:FireServer(targetPart.Parent.Name, targetPart.Position, dir) end)
+            elseif remote:IsA("RemoteFunction") then
+                pcall(function() remote:InvokeServer() end)
+                pcall(function() remote:InvokeServer("Attack") end)
+                pcall(function() remote:InvokeServer(targetPart.Position, dir) end)
+                pcall(function() remote:InvokeServer(t.humanoid, targetPart) end)
+            end
+        end)
+    end
+
+    -- Also try touch if available (works on any game)
+    if hasFireTouchInterest then
+        -- Touch with all character parts against target
+        local char = LocalPlayer.Character
+        if char then
+            for _, part in ipairs(char:GetChildren()) do
+                if part:IsA("BasePart") then
+                    pcall(function()
+                        firetouchinterest(part, targetPart, 0)
+                        task.wait()
+                        firetouchinterest(part, targetPart, 1)
+                    end)
+                end
+            end
+        end
+        -- Touch all target parts
+        if t.character then
+            for _, part in ipairs(t.character:GetChildren()) do
+                if part:IsA("BasePart") then
+                    pcall(function()
+                        firetouchinterest(myRoot, part, 0)
+                        task.wait()
+                        firetouchinterest(myRoot, part, 1)
+                    end)
+                end
+            end
+        end
+    end
+
+    -- Fire standard remotes too as fallback
+    fireMethod(t, targetPart, weapon, myRoot)
+end
+
 -- Auto mode: smart method selection
 local function autoAttack(t, targetPart, weapon, myRoot)
     -- 1. Try detected method first
     if fireMethod(t, targetPart, weapon, myRoot) then return end
     -- 2. Spy replay
     if spyReplayAttack(t, targetPart, weapon, myRoot) then return end
-    -- 3. Touch damage
+    -- 3. Custom system (if no standard tool found)
+    if not weapon and Settings.HasCustomInventory then
+        simulateCustomAttack(t, targetPart, myRoot)
+    end
+    -- 4. Touch damage
     if hasFireTouchInterest then touchDamageAttack(t, targetPart, weapon, myRoot) end
-    -- 4. Tool activate
+    -- 5. Tool activate
     if weapon then pcall(function() weapon:Activate() end) end
-    -- 5. Silent
+    -- 6. Custom combat remotes (always try if no weapon)
+    if not weapon and #Settings.CustomCombatRemotes > 0 then
+        local dir = (targetPart.Position - myRoot.Position).Unit
+        for _, remote in ipairs(Settings.CustomCombatRemotes) do
+            if remote:IsA("RemoteEvent") then
+                pcall(function() remote:FireServer() end)
+                pcall(function() remote:FireServer(targetPart.Position, dir) end)
+            end
+        end
+    end
+    -- 7. Silent
     silentAttack(t, targetPart, myRoot)
-    -- 6. Client damage
+    -- 8. Client damage
     clientDamageAttack(t)
 end
 
@@ -2312,6 +2811,7 @@ local auraConn = RunService.Heartbeat:Connect(function()
                     elseif mode == "GodModeKill" then godModeKillAttack(t, targetPart, weapon, myRoot)
                     elseif mode == "AllToolsSpam" then allToolsSpamAttack(t, targetPart, weapon, myRoot)
                     elseif mode == "BruteForceAll" then bruteForceAllAttack(t, targetPart, weapon, myRoot)
+                    elseif mode == "CustomSystem" then customSystemAttack(t, targetPart, weapon, myRoot)
                     end
                 end)
             end)
