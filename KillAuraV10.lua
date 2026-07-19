@@ -509,8 +509,7 @@ end
 local _dropdownOverlay = nil
 
 local function getDropdownOverlay()
-    if _dropdownOverlay and _dropdownOverlay.Parent then return _dropdownOverlay end
-    return nil
+    return _dropdownOverlay
 end
 
 local function makeDropdown(parent, props)
@@ -639,17 +638,13 @@ local function makeDropdown(parent, props)
         menuFrame.Visible = false
         for _, b in ipairs(buttons) do b.Visible = false end
         arrow.Text = "v"
-        local overlay = getDropdownOverlay()
-        if overlay then overlay.Visible = false end
     end
 
     local function openMenu()
         closeAllDropdowns(dropdown)
 
-        local overlay = getDropdownOverlay()
-        if overlay then
-            overlay.Visible = true
-            menuFrame.Parent = overlay
+        if _dropdownOverlay then
+            menuFrame.Parent = _dropdownOverlay
         end
         local absPos = mainBtn.AbsolutePosition
         local absSize = mainBtn.AbsoluteSize
@@ -698,19 +693,12 @@ local theme = getTheme()
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "KillAuraV10"
 ScreenGui.ResetOnSpawn = false
-ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.IgnoreGuiInset = true
 ScreenGui.DisplayOrder = 10
 ScreenGui.Parent = CoreGui
 
-_dropdownOverlay = Instance.new("Frame")
-_dropdownOverlay.Size = UDim2.new(1, 0, 1, 0)
-_dropdownOverlay.BackgroundTransparency = 1
-_dropdownOverlay.ZIndex = 199
-_dropdownOverlay.Active = false
-_dropdownOverlay.Visible = false
-_dropdownOverlay.Parent = ScreenGui
-_dropdownOverlay.Name = "DropdownOverlay"
+_dropdownOverlay = ScreenGui
 
 NotificationContainer = Instance.new("Frame")
 NotificationContainer.Size = UDim2.new(0, 200, 0, 300)
