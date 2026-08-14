@@ -24,6 +24,8 @@ typedef void* (*il2cpp_object_new_t)(void* klass);
 typedef void* (*il2cpp_class_get_field_from_name_t)(void* klass, const char* name);
 typedef void (*il2cpp_field_static_get_value_t)(void* field, void* value);
 typedef void* (*il2cpp_class_get_parent_t)(void* klass);
+typedef void* (*il2cpp_class_get_method_from_name_t)(void* klass, const char* name, int argsCount);
+typedef void* (*il2cpp_runtime_invoke_t)(void* method, void* obj, void** params, void** exc);
 
 static il2cpp_domain_get_t fn_il2cpp_domain_get = nullptr;
 static il2cpp_domain_get_assemblies_t fn_il2cpp_domain_get_assemblies = nullptr;
@@ -33,6 +35,8 @@ static il2cpp_object_new_t fn_il2cpp_object_new = nullptr;
 static il2cpp_class_get_field_from_name_t fn_il2cpp_class_get_field_from_name = nullptr;
 static il2cpp_field_static_get_value_t fn_il2cpp_field_static_get_value = nullptr;
 static il2cpp_class_get_parent_t fn_il2cpp_class_get_parent = nullptr;
+static il2cpp_class_get_method_from_name_t fn_il2cpp_class_get_method_from_name = nullptr;
+static il2cpp_runtime_invoke_t fn_il2cpp_runtime_invoke = nullptr;
 
 static bool g_il2cppApiResolved = false;
 
@@ -51,13 +55,16 @@ static void ResolveIl2CppApi() {
     fn_il2cpp_class_get_field_from_name = (il2cpp_class_get_field_from_name_t)dlsym(handle, "il2cpp_class_get_field_from_name");
     fn_il2cpp_field_static_get_value = (il2cpp_field_static_get_value_t)dlsym(handle, "il2cpp_field_static_get_value");
     fn_il2cpp_class_get_parent = (il2cpp_class_get_parent_t)dlsym(handle, "il2cpp_class_get_parent");
+    fn_il2cpp_class_get_method_from_name = (il2cpp_class_get_method_from_name_t)dlsym(handle, "il2cpp_class_get_method_from_name");
+    fn_il2cpp_runtime_invoke = (il2cpp_runtime_invoke_t)dlsym(handle, "il2cpp_runtime_invoke");
     g_il2cppApiResolved = true;
     __android_log_print(ANDROID_LOG_INFO, "AUTOLIKE",
-        "il2cpp API: domain=%p assemblies=%p image=%p class=%p new=%p field=%p static=%p parent=%p",
+        "il2cpp API: domain=%p assemblies=%p image=%p class=%p new=%p field=%p static=%p parent=%p method=%p invoke=%p",
         fn_il2cpp_domain_get, fn_il2cpp_domain_get_assemblies,
         fn_il2cpp_assembly_get_image, fn_il2cpp_class_from_name,
         fn_il2cpp_object_new, fn_il2cpp_class_get_field_from_name,
-        fn_il2cpp_field_static_get_value, fn_il2cpp_class_get_parent);
+        fn_il2cpp_field_static_get_value, fn_il2cpp_class_get_parent,
+        fn_il2cpp_class_get_method_from_name, fn_il2cpp_runtime_invoke);
 }
 
 static void* FindIl2CppImage(const char* assemblyName) {
@@ -145,18 +152,22 @@ static const uint32_t CSID_HOME_PAGE_LIKE_REQ = 12301;
 static float g_lastLikeTime = 0.0f;
 
 static void* g_cachedNetworkModule = nullptr;
+static void* g_networkModuleMethod = nullptr;
 
 static void* GetNetworkModuleInstance() {
     if (g_cachedNetworkModule) return g_cachedNetworkModule;
 
+    // Method 1: Direct function pointer from GetMethodOffset
     if (fn_GetNetworkModuleInstance) {
         void* inst = fn_GetNetworkModuleInstance();
-        if (inst) { g_cachedNetworkModule = inst; return inst; }
+        if (inst) {
+            g_cachedNetworkModule = inst;
+            AddDebugLog("NetworkModule via GetMethodOffset: %p", inst);
+            return inst;
+        }
     }
 
-    if (!fn_il2cpp_class_from_name || !fn_il2cpp_class_get_field_from_name ||
-        !fn_il2cpp_field_static_get_value)
-        return nullptr;
+    if (!fn_il2cpp_class_from_name) return nullptr;
 
     void* image = FindIl2CppImage("Project_d");
     if (!image) {
@@ -173,27 +184,54 @@ static void* GetNetworkModuleInstance() {
     void* parentClass = fn_il2cpp_class_get_parent ? fn_il2cpp_class_get_parent(klass) : nullptr;
     void* grandParent = (parentClass && fn_il2cpp_class_get_parent) ? fn_il2cpp_class_get_parent(parentClass) : nullptr;
 
-    const char* fieldNames[] = {"s_instance", "instance", "_instance", "m_instance", "s_Instance", nullptr};
-    void* field = nullptr;
-    for (int i = 0; fieldNames[i] && !field; i++) {
-        field = fn_il2cpp_class_get_field_from_name(klass, fieldNames[i]);
-        if (!field && parentClass)
-            field = fn_il2cpp_class_get_field_from_name(parentClass, fieldNames[i]);
-        if (!field && grandParent)
-            field = fn_il2cpp_class_get_field_from_name(grandParent, fieldNames[i]);
-    }
-    if (!field) {
-        AddDebugLog("ERROR: instance field not found (class=%p parent=%p grand=%p)", klass, parentClass, grandParent);
-        return nullptr;
+    // Method 2: il2cpp_runtime_invoke on get_instance/GetInstance
+    if (fn_il2cpp_class_get_method_from_name && fn_il2cpp_runtime_invoke) {
+        const char* methodNames[] = {"get_instance", "GetInstance", "get_Instance", nullptr};
+        void* classes[] = {klass, parentClass, grandParent};
+        for (int c = 0; c < 3 && classes[c]; c++) {
+            for (int m = 0; methodNames[m]; m++) {
+                void* method = fn_il2cpp_class_get_method_from_name(classes[c], methodNames[m], 0);
+                if (method) {
+                    g_networkModuleMethod = method;
+                    void* exc = nullptr;
+                    void* result = fn_il2cpp_runtime_invoke(method, nullptr, nullptr, &exc);
+                    if (result && !exc) {
+                        // runtime_invoke returns a boxed object for value types, or the object itself for ref types
+                        // For a class instance (ref type), unbox: the object IS the pointer
+                        g_cachedNetworkModule = result;
+                        AddDebugLog("NetworkModule via invoke %s on class[%d]: %p", methodNames[m], c, result);
+                        return result;
+                    }
+                    if (exc) {
+                        AddDebugLog("invoke %s exc: %p", methodNames[m], exc);
+                    }
+                }
+            }
+        }
     }
 
-    void* instance = nullptr;
-    fn_il2cpp_field_static_get_value(field, &instance);
-    if (instance) {
-        g_cachedNetworkModule = instance;
-        AddDebugLog("NetworkModule found: %p", instance);
+    // Method 3: Static field read
+    if (fn_il2cpp_class_get_field_from_name && fn_il2cpp_field_static_get_value) {
+        const char* fieldNames[] = {"s_instance", "instance", "_instance", "m_instance", "s_Instance", nullptr};
+        void* classes[] = {klass, parentClass, grandParent};
+        for (int c = 0; c < 3 && classes[c]; c++) {
+            for (int f = 0; fieldNames[f]; f++) {
+                void* field = fn_il2cpp_class_get_field_from_name(classes[c], fieldNames[f]);
+                if (field) {
+                    void* instance = nullptr;
+                    fn_il2cpp_field_static_get_value(field, &instance);
+                    AddDebugLog("Field %s on class[%d]: field=%p val=%p", fieldNames[f], c, field, instance);
+                    if (instance) {
+                        g_cachedNetworkModule = instance;
+                        return instance;
+                    }
+                }
+            }
+        }
     }
-    return instance;
+
+    AddDebugLog("ERROR: All NetworkModule resolution methods failed");
+    return nullptr;
 }
 
 static bool SendLikeRequest() {

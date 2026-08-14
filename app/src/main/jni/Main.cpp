@@ -303,6 +303,8 @@ EGLBoolean _eglSwapBuffers(EGLDisplay dpy, EGLSurface surface) {
                         ImGui::Text("field_from_name: %p", (void*)fn_il2cpp_class_get_field_from_name);
                         ImGui::Text("static_get_value: %p", (void*)fn_il2cpp_field_static_get_value);
                         ImGui::Text("class_get_parent: %p", (void*)fn_il2cpp_class_get_parent);
+                        ImGui::Text("get_method_from_name: %p", (void*)fn_il2cpp_class_get_method_from_name);
+                        ImGui::Text("runtime_invoke: %p", (void*)fn_il2cpp_runtime_invoke);
                         ImGui::Separator();
 
                         // Method pointers
@@ -312,6 +314,7 @@ EGLBoolean _eglSwapBuffers(EGLDisplay dpy, EGLSurface surface) {
                         ImGui::Text("SendLobbyMsg: %p", (void*)fn_SendLobbyMsg);
                         ImGui::Text("GetNetworkModule: %p", (void*)fn_GetNetworkModuleInstance);
                         ImGui::Text("Cached NetModule: %p", (void*)g_cachedNetworkModule);
+                        ImGui::Text("NetModule method: %p", (void*)g_networkModuleMethod);
                         ImGui::Separator();
 
                         // Field offsets
