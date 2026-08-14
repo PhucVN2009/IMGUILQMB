@@ -311,6 +311,7 @@ EGLBoolean _eglSwapBuffers(EGLDisplay dpy, EGLSurface surface) {
                         ImGui::Text("new_COMDT_ACNT_UNIQ: %p", (void*)fn_new_COMDT_ACNT_UNIQ);
                         ImGui::Text("SendLobbyMsg: %p", (void*)fn_SendLobbyMsg);
                         ImGui::Text("GetNetworkModule: %p", (void*)fn_GetNetworkModuleInstance);
+                        ImGui::Text("Cached NetModule: %p", (void*)g_cachedNetworkModule);
                         ImGui::Separator();
 
                         // Field offsets
@@ -420,6 +421,16 @@ void *Init_Thread(void *) {
     AddDebugLog("RVA resolved: CSPkg=%p ACNT=%p Send=%p base=0x%llx",
         (void*)fn_new_CSPkg, (void*)fn_new_COMDT_ACNT_UNIQ, (void*)fn_SendLobbyMsg,
         (unsigned long long)g_il2cpp_base);
+
+    // Try to resolve NetworkModule.get_instance via GetMethodOffset
+    fn_GetNetworkModuleInstance = (GetInstance_t)GetMethodOffset("Project_d.dll", "Assets.Scripts.Framework", "NetworkModule", "get_instance", 0);
+    if (!fn_GetNetworkModuleInstance)
+        fn_GetNetworkModuleInstance = (GetInstance_t)GetMethodOffset("Project_d.dll", "Assets.Scripts.Framework", "NetworkModule", "GetInstance", 0);
+    if (!fn_GetNetworkModuleInstance)
+        fn_GetNetworkModuleInstance = (GetInstance_t)GetMethodOffset("Project_d.dll", "Assets.Scripts.Framework", "NetworkModule", "get_Instance", 0);
+    if (!fn_GetNetworkModuleInstance)
+        fn_GetNetworkModuleInstance = (GetInstance_t)GetMethodOffset("Project_d.dll", "bq", "Singleton`1", "get_instance", 0);
+    AddDebugLog("GetNetworkModuleInstance: %p", (void*)fn_GetNetworkModuleInstance);
 
     // FPS Unlock (QoL)
     HOOKAU("Project_d.dll", "Assets.Scripts.Framework", "GameSettings", "get_Supported60FPSMode", 0, TRUE, _TRUE);

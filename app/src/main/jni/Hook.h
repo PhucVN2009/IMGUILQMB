@@ -144,9 +144,15 @@ static const uint32_t CSID_HOME_PAGE_LIKE_REQ = 12301;
 
 static float g_lastLikeTime = 0.0f;
 
+static void* g_cachedNetworkModule = nullptr;
+
 static void* GetNetworkModuleInstance() {
-    if (fn_GetNetworkModuleInstance)
-        return fn_GetNetworkModuleInstance();
+    if (g_cachedNetworkModule) return g_cachedNetworkModule;
+
+    if (fn_GetNetworkModuleInstance) {
+        void* inst = fn_GetNetworkModuleInstance();
+        if (inst) { g_cachedNetworkModule = inst; return inst; }
+    }
 
     if (!fn_il2cpp_class_from_name || !fn_il2cpp_class_get_field_from_name ||
         !fn_il2cpp_field_static_get_value)
@@ -165,18 +171,28 @@ static void* GetNetworkModuleInstance() {
     }
 
     void* parentClass = fn_il2cpp_class_get_parent ? fn_il2cpp_class_get_parent(klass) : nullptr;
+    void* grandParent = (parentClass && fn_il2cpp_class_get_parent) ? fn_il2cpp_class_get_parent(parentClass) : nullptr;
 
-    void* field = fn_il2cpp_class_get_field_from_name(klass, "s_instance");
-    if (!field && parentClass) {
-        field = fn_il2cpp_class_get_field_from_name(parentClass, "s_instance");
+    const char* fieldNames[] = {"s_instance", "instance", "_instance", "m_instance", "s_Instance", nullptr};
+    void* field = nullptr;
+    for (int i = 0; fieldNames[i] && !field; i++) {
+        field = fn_il2cpp_class_get_field_from_name(klass, fieldNames[i]);
+        if (!field && parentClass)
+            field = fn_il2cpp_class_get_field_from_name(parentClass, fieldNames[i]);
+        if (!field && grandParent)
+            field = fn_il2cpp_class_get_field_from_name(grandParent, fieldNames[i]);
     }
     if (!field) {
-        AddDebugLog("ERROR: s_instance field not found on NetworkModule");
+        AddDebugLog("ERROR: instance field not found (class=%p parent=%p grand=%p)", klass, parentClass, grandParent);
         return nullptr;
     }
 
     void* instance = nullptr;
     fn_il2cpp_field_static_get_value(field, &instance);
+    if (instance) {
+        g_cachedNetworkModule = instance;
+        AddDebugLog("NetworkModule found: %p", instance);
+    }
     return instance;
 }
 
