@@ -5,7 +5,7 @@
 #include <openssl/pem.h>
 
 using json = nlohmann::json;
-std::string g_Token, g_Auth;
+std::string g_Token, g_Auth, EXP;
 bool bValid = false;
 struct MemoryStruct {
 	char *memory;
