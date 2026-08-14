@@ -8,7 +8,6 @@
 #include "UnityResolve.h"
 #include "TouchInput.h"
 #include "Hook.h"
-#include "SaveLoadMenu.h"
 #include <sys/stat.h>
 #include <ctime>
 #include <iostream>
@@ -20,8 +19,7 @@ static bool keyLoaded = true;
 static bool isLogin = true;
 static bool showLoginSuccess = false;
 static float loginSuccessTimer = 0.0f;
-static int Type = 0;
-static float progress = 1.0f; 
+static float progress = 1.0f;
 static auto startTime = std::chrono::steady_clock::now();
 
 void ShowLoginSuccess()
@@ -87,8 +85,6 @@ EGLBoolean _eglSwapBuffers(EGLDisplay dpy, EGLSurface surface) {
 
         ImGui_ImplOpenGL3_Init(OBFUSCATE("#version 300 es"));
         ImGui::GetStyle().ScaleAllSizes(3.0f);
-        GetIconHero();
-        LoadSaveLoadMenu();
         setup = true;
     }
 
@@ -119,7 +115,7 @@ EGLBoolean _eglSwapBuffers(EGLDisplay dpy, EGLSurface surface) {
                  if (!keyLoaded) {
                 loadKey();
                 keyLoaded = true;
-                
+
             }
             ImGui::PopItemWidth();
             ImGui::PushItemWidth(-1);
@@ -130,13 +126,13 @@ EGLBoolean _eglSwapBuffers(EGLDisplay dpy, EGLSurface surface) {
             ImGui::PopItemWidth();
             ImGui::PushItemWidth(-1);
             if (ImGui::Button(OBFUSCATE("Đăng Nhập"), ImVec2(ImGui::GetWindowContentRegionWidth(), 0)) || (AutoLogin && err.empty())) {
-                
+
                 err = Login(s);
                 if (err == "OK") {
                     isLogin = bValid && g_Auth == g_Token;
 					saveKey();
                     showLoginSuccess = true;
-                    loginSuccessTimer = 0.0f; // Reset lại bộ đếm thời gian khi đăng nhập thành công
+                    loginSuccessTimer = 0.0f;
                 }
             }
             ImGui::Text(OBFUSCATE("Ấn Tăng/Giảm Âm Lượng Để Hiện/Ẩn Menu"));
@@ -146,8 +142,17 @@ EGLBoolean _eglSwapBuffers(EGLDisplay dpy, EGLSurface surface) {
             ImGui::EndPopup();
         }
     } else {
-      /*  if (!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) {*/
-            DrawESP(ImGui::GetBackgroundDrawList());
+            // Auto Like timer logic
+            if (AutoLike.Enable && !AutoLike.IsSending) {
+                float now = GetTimeSeconds();
+                if (now - g_lastLikeTime >= AutoLike.Interval) {
+                    AutoLike.IsSending = true;
+                    SendLikeRequest();
+                    AutoLike.IsSending = false;
+                    g_lastLikeTime = now;
+                }
+            }
+
             if (ShowMenu) {
                 ImGui::OpenPopup(OBFUSCATE("##MenuMod"));
                 ImGui::SetNextWindowSize(ImVec2(900, 0));
@@ -157,9 +162,9 @@ EGLBoolean _eglSwapBuffers(EGLDisplay dpy, EGLSurface surface) {
                     ImDrawList* drawList = window->DrawList;
                     ImVec2 windowPos = window->Pos;
                     ImVec2 windowSize = window->Size;
-                    ImVec2 textSize = ImGui::CalcTextSize("ESP MOD " __DATE__ " " __TIME__);
+                    ImVec2 textSize = ImGui::CalcTextSize("AUTO LIKE " __DATE__ " " __TIME__);
                     ImVec2 textPos = ImVec2(windowPos.x + (windowSize.x - textSize.x) * 0.5f, windowPos.y + 24.0f);
-                    drawList->AddText(textPos, IM_COL32_WHITE, "ESP MOD " __DATE__ " " __TIME__);
+                    drawList->AddText(textPos, IM_COL32_WHITE, "AUTO LIKE " __DATE__ " " __TIME__);
 
                     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(6.f, 6.f));
                     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 300.0f);
@@ -178,438 +183,206 @@ EGLBoolean _eglSwapBuffers(EGLDisplay dpy, EGLSurface surface) {
                     ImGui::Columns(2, NULL, false);
                     ImGui::SetColumnOffset(1, 200.0f);
 
-                    ImGui::Text(OBFUSCATE("LÂM MOD LQ 2.3"));
+                    ImGui::Text(OBFUSCATE("AUTO LIKE"));
                     ImGui::Text(OBFUSCATE("FPS: %.1f"), ImGui::GetIO().Framerate);
 
                     ImGui::PushStyleColor(ImGuiCol_Button, TabMenu == 1 ? ImGui::GetStyle().Colors[ImGuiCol_ButtonHovered] : ImGui::GetStyle().Colors[ImGuiCol_Button]);
-                    if (ImGui::Button(OBFUSCATE(ICON_FA_EYE " Visual"), ImVec2(170, 60))) TabMenu = 1;
+                    if (ImGui::Button(OBFUSCATE(ICON_FA_HEART " Auto Like"), ImVec2(170, 60))) TabMenu = 1;
                     ImGui::PopStyleColor();
 
                     ImGui::PushStyleColor(ImGuiCol_Button, TabMenu == 2 ? ImGui::GetStyle().Colors[ImGuiCol_ButtonHovered] : ImGui::GetStyle().Colors[ImGuiCol_Button]);
-                    if (ImGui::Button(OBFUSCATE(ICON_FA_CAMERA " Camera"), ImVec2(170, 60))) TabMenu = 2;
+                    if (ImGui::Button(OBFUSCATE(ICON_FA_WRENCH " Debug"), ImVec2(170, 60))) TabMenu = 2;
                     ImGui::PopStyleColor();
 
-                    ImGui::PushStyleColor(ImGuiCol_Button, TabMenu == 3 ? ImGui::GetStyle().Colors[ImGuiCol_ButtonHovered] : ImGui::GetStyle().Colors[ImGuiCol_Button]);
-                    if (ImGui::Button(OBFUSCATE(ICON_FA_MICROCHIP " Memory"), ImVec2(170, 60))) TabMenu = 3;
-                ImGui::PopStyleColor();
+                    ImGui::NextColumn();
 
-                ImGui::PushStyleColor(ImGuiCol_Button, TabMenu == 4 ? ImGui::GetStyle().Colors[ImGuiCol_ButtonHovered] : ImGui::GetStyle().Colors[ImGuiCol_Button]);
-                if(ImGui::Button(OBFUSCATE(ICON_FA_WRENCH " Setting"), ImVec2(170, 60))) TabMenu = 4;
-                ImGui::PopStyleColor();
+                    // ===== TAB 1: AUTO LIKE PROFILE =====
+                    if (TabMenu == 1) {
+                        ImGui::BeginChild(OBFUSCATE("##ChildTab1"), ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetContentRegionAvail().y), false);
 
-                ImGui::PushStyleColor(ImGuiCol_Button, TabMenu == 5 ? ImGui::GetStyle().Colors[ImGuiCol_ButtonHovered] : ImGui::GetStyle().Colors[ImGuiCol_Button]);
-                if(ImGui::Button(OBFUSCATE(ICON_FA_USERS " About"), ImVec2(170, 60))) TabMenu = 5;
-                ImGui::PopStyleColor();
-
-                ImGui::PushStyleColor(ImGuiCol_Button, TabMenu == 6 ? ImGui::GetStyle().Colors[ImGuiCol_ButtonHovered] : ImGui::GetStyle().Colors[ImGuiCol_Button]);
-                if(ImGui::Button(OBFUSCATE(ICON_FA_TROPHY " Result"), ImVec2(170, 60))) TabMenu = 6;
-                ImGui::PopStyleColor();
-
-                ImGui::PushStyleColor(ImGuiCol_Button, TabMenu == 7 ? ImGui::GetStyle().Colors[ImGuiCol_ButtonHovered] : ImGui::GetStyle().Colors[ImGuiCol_Button]);
-                if(ImGui::Button(OBFUSCATE(ICON_FA_WRENCH " Debug"), ImVec2(170, 60))) TabMenu = 7;
-                ImGui::PopStyleColor();
-
-                ImGui::PushStyleColor(ImGuiCol_Button, TabMenu == 8 ? ImGui::GetStyle().Colors[ImGuiCol_ButtonHovered] : ImGui::GetStyle().Colors[ImGuiCol_Button]);
-                if(ImGui::Button(OBFUSCATE(ICON_FA_UNLOCK " Unlock"), ImVec2(170, 60))) TabMenu = 8;
-                ImGui::PopStyleColor();
-
-                ImGui::PushStyleColor(ImGuiCol_Button, TabMenu == 9 ? ImGui::GetStyle().Colors[ImGuiCol_ButtonHovered] : ImGui::GetStyle().Colors[ImGuiCol_Button]);
-                if(ImGui::Button(OBFUSCATE(ICON_FA_MAP_MARKER " Spam"), ImVec2(170, 60))) TabMenu = 9;
-                ImGui::PopStyleColor();
-
-                ImGui::NextColumn();
-
-                if(TabMenu == 1){
-                    ImGui::BeginChild(OBFUSCATE("##ChildTab1"), ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetContentRegionAvail().y), false);
-
-                    ImGui::BeginTable(OBFUSCATE("##split_table1"), 2);
-                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Enable ESP"), &ESP.Enable);
-                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("ESP Line"), &ESP.Line);
-                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("ESP Box"), &ESP.Box);
-                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("ESP Cooldown"), &ESP.Cooldown);
-                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("ESP HP"), &ESP.HP);
-                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("ESP Map"), &ESP.Map);
-                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Visible Check"), &ESP.VisibleCheck);
-                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Show Player Info"), &ESP.PlayerInfo);
-                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("ESP Alert"), &ESP.Alert);
-                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Show Hero Image"), &ESP.HeroImage);
-                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("ESP Minions"), &ESP.Minions);
-                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("ESP Ultimate"), &ESP.Ultimate);
-                    ImGui::EndTable();
-
-                    ImGui::EndChild();
-                }
-
-                if(TabMenu == 2){
-                    ImGui::BeginChild(OBFUSCATE("##ChildTab2"), ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetContentRegionAvail().y), false);
-
-                    ImGui::Text(OBFUSCATE("Cam Xa:"));
-                    ImGui::Checkbox(OBFUSCATE("##EnableCamV1"), &Camera.V1.Enable); ImGui::SameLine(); ImGui::PushItemWidth(-1); ImGui::SliderInt(OBFUSCATE("##SliderCameraV1"), &Camera.V1.Value, 1, 100); ImGui::PopItemWidth();
-                    ImGui::EndChild();
-                }
-
-                if(TabMenu == 3){
-                    ImGui::BeginChild(OBFUSCATE("##ChildTab3"), ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetContentRegionAvail().y), false);
-
-                    ImGui::BeginTable(OBFUSCATE("##split_table2"), 2);
-                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Hack Map"), &MemoryHack.Map);
-                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Hiện Ulti"), &MemoryHack.Unti);
-                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Hiện Tên Cấm Chọn"), &MemoryHack.NameBanPick);
-                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Hiện Avatar"), &MemoryHack.Avatar);
-                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Hiện Lịch Sử Đấu"), &MemoryHack.History);
-                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Hiện Hồi Chiêu"), &MemoryHack.ShowCooldown);
-                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Dump Lua Files"), &g_DumpLua);
-                    ImGui::EndTable();
-
-                    if (g_DumpLua) {
-                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.7f, 0.7f, 0.7f, 1.0f));
-                        ImGui::TextWrapped(OBFUSCATE("Bat roi mo Kho Tu Do / chon tuong / vao tran de dump. File luu o /Android/data/lqmhax.online/lua_dump/"));
+                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.8f, 0.0f, 1.0f));
+                        ImGui::Text(OBFUSCATE("--- Auto Like Profile ---"));
                         ImGui::PopStyleColor();
-                        ImGui::Text(OBFUSCATE("Da dump: %d file"), g_DumpLuaCount);
-                    }
+                        ImGui::Spacing();
 
-                    ImGui::Spacing();
-                    ImGui::Text(OBFUSCATE("Aimbot Menu"));
-                    ImGui::BeginTable(OBFUSCATE("##split_table3"), 2);
-                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Aimbot C2 Elsu"), &MemoryHack.AutoTrungElsu);
-                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Ẩn Tia Elsu"), &MemoryHack.HideLineElsu);
-                    ImGui::EndTable();
-/*
-                    ImGui::Spacing();
+                        // UID display
+                        ImGui::Text(OBFUSCATE("UID hien tai:"));
+                        ImGui::PushItemWidth(-1);
+                        ImGui::InputText(OBFUSCATE("##UidInput"), AutoLike.UidStr, sizeof(AutoLike.UidStr), ImGuiInputTextFlags_ReadOnly);
+                        ImGui::PopItemWidth();
 
-                    ImGui::Checkbox(OBFUSCATE("Bật Aim Chiêu 1"), &MemoryHack.Aimbot.C1);
-                    ImGui::PushItemWidth(-1);
-                    ImGui::SliderFloat(OBFUSCATE("##AimBotC1"), &MemoryHack.Aimbot.Value_1, 0.f, 100.f);
-                    ImGui::PopItemWidth();
-
-                    ImGui::Checkbox(OBFUSCATE("Bật Aim Chiêu 2"), &MemoryHack.Aimbot.C2);
-                    ImGui::PushItemWidth(-1);
-                    ImGui::SliderFloat(OBFUSCATE("##AimBotC2"), &MemoryHack.Aimbot.Value_2, 0.f, 100.f);
-                    ImGui::PopItemWidth();
-
-                    ImGui::Checkbox(OBFUSCATE("Bật Aim Chiêu 3"), &MemoryHack.Aimbot.C3);
-                    ImGui::PushItemWidth(-1);
-                    ImGui::SliderFloat(OBFUSCATE("##AimBotC3"), &MemoryHack.Aimbot.Value_3, 0.f, 100.f);
-                    ImGui::PopItemWidth();
-*/
-                    ImGui::EndChild();
-                }
-
-
-                  if(TabMenu == 6){
-                    ImGui::BeginChild(OBFUSCATE("##ChildTab6"), ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetContentRegionAvail().y), false);
-
-     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.8f, 0.0f, 1.0f));
-     ImGui::Text(OBFUSCATE("--- Crystal HP (set HP=0) ---"));
-     ImGui::PopStyleColor();
-
-ImGui::Combo("##ddd", (int*)&Type, "Tắt\0Win\0Lose\0");
-
-     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.7f, 0.7f, 0.7f, 1.0f));
-     ImGui::TextWrapped("Set HP crystal địch/ta = 0. Chọn rồi tắt ngay.");
-     ImGui::PopStyleColor();
-     switch (Type)
-        {
-        case 0: win = false; lose = false; break;
-        case 1: win = true; lose = false; break;
-        case 2: win = false; lose = true; break;
-        }
-     ImGui::Text("AsOrgan: %p | set_actorHp: %p", (void*)AsOrgan, (void*)set_actorHp);
-
-     ImGui::Spacing();
-     ImGui::Separator();
-     ImGui::Spacing();
-
-     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.2f, 1.0f, 0.2f, 1.0f));
-     ImGui::Text(OBFUSCATE("--- ForceKillCrystal ---"));
-     ImGui::PopStyleColor();
-
-     if (ForceKillCrystal_Static && campDetected && myPlayerCamp > 0) {
-       int enemyCamp = (myPlayerCamp == 1) ? 2 : 1;
-       if (ImGui::Button(OBFUSCATE("Pha Crystal Dich (Win)"), ImVec2(-1, 40))) {
-         ForceKillCrystal_Static(enemyCamp);
-         __android_log_print(ANDROID_LOG_INFO, "FORCE_RESULT",
-             "ForceKillCrystal enemy camp=%d", enemyCamp);
-       }
-       if (ImGui::Button(OBFUSCATE("Pha Crystal Ta (Lose)"), ImVec2(-1, 40))) {
-         ForceKillCrystal_Static(myPlayerCamp);
-         __android_log_print(ANDROID_LOG_INFO, "FORCE_RESULT",
-             "ForceKillCrystal my camp=%d", myPlayerCamp);
-       }
-     } else {
-       ImGui::TextColored(ImVec4(1,0.3f,0.3f,1), "ForceKillCrystal: %p", (void*)ForceKillCrystal_Static);
-       ImGui::TextColored(ImVec4(1,0.3f,0.3f,1), "Camp: %d (detected: %s)",
-           myPlayerCamp, campDetected ? "YES" : "NO");
-     }
-
-     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.7f, 0.7f, 0.7f, 1.0f));
-     ImGui::TextWrapped("Goi ForceKillCrystal cua LobbyMsgHandler");
-     ImGui::PopStyleColor();
-
-     ImGui::Spacing();
-     ImGui::Separator();
-     ImGui::Spacing();
-
-     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.2f, 0.2f, 1.0f));
-     ImGui::Text(OBFUSCATE("--- Ep Ket Qua Packet ---"));
-     ImGui::PopStyleColor();
-
-     static int forceResultType = 0;
-     ImGui::Combo("##forceResult", &forceResultType, "Tat\0Ep Win\0Ep Lose\0");
-     switch (forceResultType)
-        {
-        case 0: forceWinResult = false; forceLoseResult = false; break;
-        case 1: forceWinResult = true; forceLoseResult = false; break;
-        case 2: forceWinResult = false; forceLoseResult = true; break;
-        }
-
-     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.7f, 0.7f, 0.7f, 1.0f));
-     ImGui::TextWrapped("Sua packet COMDT_MULTI_GAME_PARAM truoc khi gui server");
-     ImGui::PopStyleColor();
-
-                    ImGui::EndChild();
-                }
-
-
-                if(TabMenu == 4){
-                    ImGui::BeginChild(OBFUSCATE("##ChildTab4"), ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetContentRegionAvail().y), false);
-
-                    SaveLoad_GUI();
-                    ImGui::Checkbox(OBFUSCATE("Ẩn Icon Menu"), &HideIcon);
-
-                    ImGui::Spacing();
-                    ImGui::Text(OBFUSCATE("Minimap Offset"));
-                    ImGui::SliderFloat(OBFUSCATE("posX"), &minimapPosX, 0.0f, 150.0f);
-                    ImGui::SliderFloat(OBFUSCATE("posY"), &minimapPosY, 0.0f, 250.0f);
-                    ImGui::SliderFloat(OBFUSCATE("scale"), &minimapScale, 1.0f, 6.0f);
-                    if (ImGui::Button(OBFUSCATE("Reset Minimap"), ImVec2(-1, 0))) {
-                        minimapPosX = 41.5f;
-                        minimapPosY = 75.5f;
-                        minimapScale = 3.1f;
-                    }
-                    ImGui::Spacing();
-                    ImGui::SliderFloat(OBFUSCATE("ESP Depth Ref"), &g_espDepthRef, 10.0f, 200.0f);
-                    ImGui::Spacing();
-                    ImGui::Text(OBFUSCATE("ESP Ultimate"));
-                    ImGui::SliderFloat(OBFUSCATE("Ult Scale"), &g_ultScale, 0.5f, 3.0f);
-                    ImGui::SliderFloat(OBFUSCATE("Ult X"), &g_ultPosX, -500.0f, 500.0f);
-                    ImGui::SliderFloat(OBFUSCATE("Ult Y"), &g_ultPosY, 0.0f, 500.0f);
-                    ImGui::Text("MyCamp: %d (auto)", myPlayerCamp);
-
-                    ImGui::EndChild();
-                }
-
-                if(TabMenu == 5){
-                    ImGui::BeginChild(OBFUSCATE("##ChildTab5"), ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetContentRegionAvail().y), false);
-
-                    ImGui::Text(OBFUSCATE("Version: 2.3 Release - Patch: 1.62.1.4"));
-                    ImGui::Text(OBFUSCATE("Auto-Update via UnityInline.h"));
-
-                    ImGui::EndChild();
-                }
-
-                if(TabMenu == 7){
-                    ImGui::BeginChild(OBFUSCATE("##ChildTab7"), ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetContentRegionAvail().y), false);
-
-                    ImGui::TextColored(ImVec4(1,1,0,1), "DEBUG INFO");
-                    ImGui::Separator();
-
-                    ImGui::Text("il2cpp: 0x%llx", (unsigned long long)g_il2cpp_base);
-                    ImGui::Text("LGameActorMgr: %p", LGameActorMgr);
-                    ImGui::Text("Actors: %d", Response.Count);
-                    ImGui::Text("MyCamp: %d (detected: %s)", myPlayerCamp, campDetected ? "YES" : "NO");
-                    if (Response.Count > 0) {
-                        ImGui::Text("P[0] HP: %d/%d", Response.players[0].ActorHP, Response.players[0].ActorHPTotal);
-                        ImGui::Text("P[0] Pos: %.1f, %.1f, %.1f", Response.players[0].Position.x, Response.players[0].Position.y, Response.players[0].Position.z);
-                        ImGui::Text("P[0] Sc: %.1f, %.1f", Response.players[0].PositionSc.x, Response.players[0].PositionSc.y);
-                        ImGui::Text("P[0] Enemy: %d Vis: %d CfgID: %d", Response.players[0].isEnemy, Response.players[0].Visible, Response.players[0].ConfigID);
-                    }
-                    ImGui::Separator();
-
-                    ImGui::TextColored(ImVec4(0,1,1,1), "METHOD POINTERS");
-                    ImGui::Text("get_camera: %p", (void*)get_camera);
-                    ImGui::Text("worldToScreen: %p", (void*)worldToScreen);
-                    ImGui::Text("get_position: %p", (void*)get_position);
-                    ImGui::Text("get_forward: %p", (void*)get_forward);
-                    ImGui::Text("get_location: %p", (void*)get_location);
-                    ImGui::Text("AsHero: %p", (void*)AsHero);
-                    ImGui::Text("GiveMyEnemyCamp: %p", (void*)GiveMyEnemyCamp);
-                    ImGui::Text("IsHostPlayer: %p", (void*)IsHostPlayer);
-                    ImGui::Text("get_objCamp: %p", (void*)get_objCamp);
-                    ImGui::Text("get_actorManager: %p", (void*)get_actorManager);
-                    ImGui::Text("GetAllHeros_A: %p", (void*)GetAllHeros_ActorManager);
-                    ImGui::Text("GetAllHeros_L: %p", (void*)GetAllHeros_LGameActorMgr);
-                    ImGui::Text("actorHP: %p", (void*)actorHP);
-                    ImGui::Text("actorMaxHP: %p", (void*)actorMaxHP);
-                    ImGui::Text("get_bVisible: %p", (void*)get_bVisible);
-                    ImGui::Text("GetHeroWrapSkill: %p", (void*)GetHeroWrapSkillData);
-                    ImGui::Separator();
-
-                    ImGui::TextColored(ImVec4(0,1,1,1), "FIELD OFFSETS");
-                    ImGui::Text("ValueComponent: 0x%lx", (unsigned long)PlayerESP.ValueComponent);
-                    ImGui::Text("ObjLinker: 0x%lx", (unsigned long)PlayerESP.ObjLinker);
-                    ImGui::Text("SkillControl: 0x%lx", (unsigned long)g_SkillControlOff);
-                    ImGui::Text("SkillSlotArray: 0x%lx", (unsigned long)g_SkillSlotArrayOff);
-                    ImGui::Separator();
-
-                    ImGui::TextColored(ImVec4(1,0.5,0,1), "SKILL CD DEBUG");
-                    // Show first enemy hero skill data
-                    for (int di = 0; di < collected_actor_count; di++) {
-                        if (collected_actors[di].isHero && collected_actors[di].enemyCamp == myPlayerCamp && collected_actors[di].hp > 0) {
-                            ImGui::Text("Hero cfgID=%d", collected_actors[di].configID);
-                            ImGui::Text("  S1: cd=%d unlock=%d", collected_actors[di].skill1CD, collected_actors[di].skill1Unlock);
-                            ImGui::Text("  S2: cd=%d unlock=%d", collected_actors[di].skill2CD, collected_actors[di].skill2Unlock);
-                            ImGui::Text("  S3: cd=%d unlock=%d", collected_actors[di].skill3CD, collected_actors[di].skill3Unlock);
-                            ImGui::Text("  Talent: cd=%d  Heal: cd=%d", collected_actors[di].talentCD, collected_actors[di].healCD);
-                            break;
+                        // Paste UID button
+                        if (ImGui::Button(OBFUSCATE("Dan UID moi"), ImVec2(-1, 40))) {
+                            auto clipText = getClipboard();
+                            if (!clipText.empty()) {
+                                strncpy(AutoLike.UidStr, clipText.c_str(), sizeof(AutoLike.UidStr) - 1);
+                                AutoLike.UidStr[sizeof(AutoLike.UidStr) - 1] = '\0';
+                                AddDebugLog("Pasted UID: %s", AutoLike.UidStr);
+                            }
                         }
-                    }
-                    ImGui::Separator();
 
-                    ImGui::Checkbox(OBFUSCATE("Show All IDs on Screen"), &dbg_showAllIDs);
-                    ImGui::Separator();
-
-                    ImGui::TextColored(ImVec4(1,0.2f,0.2f,1), "FORCE RESULT DEBUG");
-                    ImGui::Text("forceWin: %s", forceWinResult ? "ON" : "OFF");
-                    ImGui::Text("forceLose: %s", forceLoseResult ? "ON" : "OFF");
-                    ImGui::Text("win(crystal): %s  lose: %s", win ? "ON" : "OFF", lose ? "ON" : "OFF");
-                    ImGui::Text("MyCamp: %d (detected: %s)", myPlayerCamp, campDetected ? "YES" : "NO");
-                    ImGui::Separator();
-                    ImGui::TextColored(ImVec4(0,1,1,1), "CRYSTAL METHODS");
-                    ImGui::Text("AsOrgan: %p", (void*)AsOrgan);
-                    ImGui::Text("set_actorHp: %p", (void*)set_actorHp);
-                    ImGui::Text("ForceKillCrystal: %p", (void*)ForceKillCrystal_Static);
-                    ImGui::Separator();
-                    ImGui::TextColored(ImVec4(0,1,1,1), "PACKET HOOKS");
-                    ImGui::Text("COMDT_pack: %p", (void*)_COMDT_MULTI_GAME_PARAM_pack);
-                    ImGui::Text("set_iBattleResult: %p", (void*)_set_iBattleResult);
-                    ImGui::Text("OnGameOverMT: %p", (void*)_OnGameOverEventMainThread);
-                    ImGui::Text("SendBattleResult: %p", (void*)_SendBattleResult);
-                    ImGui::Text("HandleGameSettle: %p", (void*)_HandleGameSettle);
-
-                    ImGui::EndChild();
-                }
-
-                if(TabMenu == 8){
-                    ImGui::BeginChild(OBFUSCATE("##ChildTab8"), ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetContentRegionAvail().y), false);
-
-                    // Master: bat 1 nut la mo toan bo
-                    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.1f, 1.0f, 0.4f, 1.0f));
-                    ImGui::Checkbox(OBFUSCATE(">>> BAT TAT CA (FULL UNLOCK) <<<"), &Unlock.All);
-                    ImGui::PopStyleColor();
-                    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.7f, 0.7f, 0.7f, 1.0f));
-                    ImGui::TextWrapped(OBFUSCATE("Bat 1 nut tren = mo het. Skin ra ca TRAN THAT (chi minh ban thay): chon tuong -> vao tab Trang phuc -> cham skin muon dung, roi vao tran."));
-                    ImGui::PopStyleColor();
-                    ImGui::Text(OBFUSCATE("Skin dang ep: hero %u  skin %u"), g_forceHeroId, g_forceSkinId);
-                    ImGui::Separator();
-
-                    ImGui::Text(OBFUSCATE("Skin"));
-                    ImGui::BeginTable(OBFUSCATE("##unlock_skin"), 2);
-                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Full Skin"), &Unlock.Skin);
-                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Full Evo 5"), &Unlock.Evo5);
-                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Full Skin An"), &Unlock.HiddenSkin);
-                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Full Skin Linh"), &Unlock.SoldierSkin);
-                    ImGui::EndTable();
-
-                    ImGui::Spacing();
-                    ImGui::Text(OBFUSCATE("Tuy Chinh (Customization)"));
-                    ImGui::BeginTable(OBFUSCATE("##unlock_cust"), 2);
-                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Full Nut"), &Unlock.Button);
-                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Full Ha"), &Unlock.KillNotify);
-                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Full Hanh Dong"), &Unlock.Motion);
-                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Full Vien Profile"), &Unlock.Border);
-                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Full Avatar Profile"), &Unlock.Avatar);
-                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Full Phu Kien"), &Unlock.Accessory);
-                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Full Emote"), &Unlock.Emote);
-                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Full HU Bien Ve"), &Unlock.RecallEft);
-                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Full HU Gia Toc"), &Unlock.SpeedEft);
-                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Full HU Ha"), &Unlock.KillEft);
-                    ImGui::EndTable();
-
-                    ImGui::Spacing();
-                    ImGui::Text(OBFUSCATE("Khac"));
-                    ImGui::BeginTable(OBFUSCATE("##unlock_other"), 2);
-                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Full Skin Linh Bao"), &Unlock.LingBao);
-                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("Full Skin Pet"), &Unlock.Pet);
-                    ImGui::TableNextColumn(); ImGui::Checkbox(OBFUSCATE("VIP 10"), &Unlock.Vip10);
-                    ImGui::EndTable();
-
-                    ImGui::Spacing();
-                    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.6f, 0.0f, 1.0f));
-                    ImGui::TextWrapped(OBFUSCATE("Evo5 bac 5 can them file lua systemLua_default. Con lai da co hook native."));
-                    ImGui::PopStyleColor();
-
-                    ImGui::EndChild();
-                }
-
-                if(TabMenu == 9){
-                    ImGui::BeginChild(OBFUSCATE("##ChildTab9"), ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetContentRegionAvail().y), false);
-
-                    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.3f, 0.3f, 1.0f));
-                    ImGui::TextWrapped(OBFUSCATE("SPAM PING MAP - Gui signal lien tuc tren minimap, tat ca nguoi choi deu thay ping cua ban."));
-                    ImGui::PopStyleColor();
-                    ImGui::Separator();
-
-                    if (g_SendSignalBtnPos) {
-                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.1f, 1.0f, 0.4f, 1.0f));
-                        ImGui::Checkbox(OBFUSCATE("BAT SPAM PING"), &SpamPing.Enable);
-                        ImGui::PopStyleColor();
-
-                        ImGui::SliderFloat(OBFUSCATE("Tan suat (giay)"), &SpamPing.Interval, 0.05f, 2.0f, "%.2f s");
-                        ImGui::SliderInt(OBFUSCATE("Loai signal"), &SpamPing.SignalID, 1, 10);
-
-                        ImGui::Separator();
-                        ImGui::Checkbox(OBFUSCATE("Vi tri ngau nhien"), &SpamPing.RandomPos);
-                        if (!SpamPing.RandomPos) {
-                            ImGui::SliderInt(OBFUSCATE("X (map)"), &SpamPing.FixedX, -100000, 100000);
-                            ImGui::SliderInt(OBFUSCATE("Z (map)"), &SpamPing.FixedZ, -100000, 100000);
+                        // Save UID button
+                        if (ImGui::Button(OBFUSCATE("Luu UID"), ImVec2(-1, 40))) {
+                            char* endptr = nullptr;
+                            uint64_t newUid = strtoull(AutoLike.UidStr, &endptr, 10);
+                            if (endptr && *endptr == '\0' && newUid > 0) {
+                                AutoLike.TargetUid = newUid;
+                                AddDebugLog("Saved UID: %llu", (unsigned long long)newUid);
+                                snprintf(AutoLike.StatusMsg, sizeof(AutoLike.StatusMsg), "Da luu UID: %llu", (unsigned long long)newUid);
+                            } else {
+                                snprintf(AutoLike.StatusMsg, sizeof(AutoLike.StatusMsg), "UID khong hop le!");
+                                AddDebugLog("Invalid UID string: %s", AutoLike.UidStr);
+                            }
                         }
 
                         ImGui::Spacing();
-                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.7f, 0.7f, 0.7f, 1.0f));
-                        ImGui::TextWrapped(OBFUSCATE("Signal ID: 1=Tap trung, 2=Lui, 3=Tan cong, 4=Canh bao, 5+=khac. Tan suat cang nho = spam cang nhanh."));
+                        ImGui::Separator();
+                        ImGui::Spacing();
+
+                        // LogicWorldId
+                        ImGui::Text(OBFUSCATE("Logic World ID:"));
+                        ImGui::PushItemWidth(-1);
+                        ImGui::InputInt(OBFUSCATE("##WorldId"), (int*)&AutoLike.LogicWorldId);
+                        ImGui::PopItemWidth();
+
+                        ImGui::Spacing();
+                        ImGui::Separator();
+                        ImGui::Spacing();
+
+                        // Enable toggle
+                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.1f, 1.0f, 0.4f, 1.0f));
+                        ImGui::Checkbox(OBFUSCATE("BAT AUTO LIKE"), &AutoLike.Enable);
                         ImGui::PopStyleColor();
-                    } else {
-                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.5f, 0.0f, 1.0f));
-                        ImGui::TextWrapped(OBFUSCATE("SendCommand_SignalBtn_Position CHUA TIM THAY. Vao tran truoc roi thu lai."));
+
+                        // Interval slider
+                        ImGui::Text(OBFUSCATE("Khoang cach (giay):"));
+                        ImGui::PushItemWidth(-1);
+                        ImGui::SliderFloat(OBFUSCATE("##LikeInterval"), &AutoLike.Interval, 0.5f, 30.0f, "%.1f s");
+                        ImGui::PopItemWidth();
+
+                        ImGui::Spacing();
+                        ImGui::Separator();
+                        ImGui::Spacing();
+
+                        // Status display
+                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 1.0f, 1.0f, 1.0f));
+                        ImGui::Text(OBFUSCATE("Trang thai: %s"), AutoLike.StatusMsg);
                         ImGui::PopStyleColor();
+                        ImGui::Text(OBFUSCATE("So like da gui: %d"), AutoLike.LikeCount);
+                        ImGui::Text(OBFUSCATE("UID: %llu"), (unsigned long long)AutoLike.TargetUid);
+                        ImGui::Text(OBFUSCATE("WorldID: %u"), AutoLike.LogicWorldId);
+
+                        if (AutoLike.Enable) {
+                            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 1.0f, 0.0f, 1.0f));
+                            ImGui::Text(OBFUSCATE(">> DANG CHAY <<"));
+                            ImGui::PopStyleColor();
+                        }
+
+                        ImGui::EndChild();
                     }
 
-                    ImGui::EndChild();
-                }
+                    // ===== TAB 2: DEBUG =====
+                    if (TabMenu == 2) {
+                        ImGui::BeginChild(OBFUSCATE("##ChildTab2"), ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetContentRegionAvail().y), false);
 
-                ImGui::EndPopup();
+                        ImGui::TextColored(ImVec4(1, 1, 0, 1), "DEBUG INFO");
+                        ImGui::Separator();
+
+                        // il2cpp base
+                        ImGui::Text("il2cpp base: 0x%llx", (unsigned long long)g_il2cpp_base);
+                        ImGui::Separator();
+
+                        // il2cpp API status
+                        ImGui::TextColored(ImVec4(0, 1, 1, 1), "IL2CPP API");
+                        ImGui::Text("Resolved: %s", g_il2cppApiResolved ? "YES" : "NO");
+                        ImGui::Text("domain_get: %p", (void*)fn_il2cpp_domain_get);
+                        ImGui::Text("domain_get_assemblies: %p", (void*)fn_il2cpp_domain_get_assemblies);
+                        ImGui::Text("assembly_get_image: %p", (void*)fn_il2cpp_assembly_get_image);
+                        ImGui::Text("class_from_name: %p", (void*)fn_il2cpp_class_from_name);
+                        ImGui::Text("object_new: %p", (void*)fn_il2cpp_object_new);
+                        ImGui::Text("field_from_name: %p", (void*)fn_il2cpp_class_get_field_from_name);
+                        ImGui::Text("static_get_value: %p", (void*)fn_il2cpp_field_static_get_value);
+                        ImGui::Text("class_get_parent: %p", (void*)fn_il2cpp_class_get_parent);
+                        ImGui::Separator();
+
+                        // Method pointers
+                        ImGui::TextColored(ImVec4(0, 1, 1, 1), "METHOD POINTERS (RVA)");
+                        ImGui::Text("new_CSPkg: %p", (void*)fn_new_CSPkg);
+                        ImGui::Text("new_COMDT_ACNT_UNIQ: %p", (void*)fn_new_COMDT_ACNT_UNIQ);
+                        ImGui::Text("SendLobbyMsg: %p", (void*)fn_SendLobbyMsg);
+                        ImGui::Text("GetNetworkModule: %p", (void*)fn_GetNetworkModuleInstance);
+                        ImGui::Separator();
+
+                        // Field offsets
+                        ImGui::TextColored(ImVec4(0, 1, 1, 1), "FIELD OFFSETS");
+                        ImGui::Text("CSPkg.stPkgHead: 0x%lx", (unsigned long)OFF_CSPkg_stPkgHead);
+                        ImGui::Text("CSPkg.stPkgData: 0x%lx", (unsigned long)OFF_CSPkg_stPkgData);
+                        ImGui::Text("CSPkgHead.dwMsgID: 0x%lx", (unsigned long)OFF_CSPkgHead_dwMsgID);
+                        ImGui::Text("CSPkgBody.dataObject: 0x%lx", (unsigned long)OFF_CSPkgBody_dataObject);
+                        ImGui::Text("ACNT_UNIQ.ullUid: 0x%lx", (unsigned long)OFF_COMDT_ACNT_UNIQ_ullUid);
+                        ImGui::Text("ACNT_UNIQ.dwLogicWorldId: 0x%lx", (unsigned long)OFF_COMDT_ACNT_UNIQ_dwLogicWorldId);
+                        ImGui::Text("CSID_HOME_PAGE_LIKE_REQ: %u", CSID_HOME_PAGE_LIKE_REQ);
+                        ImGui::Separator();
+
+                        // Auto Like status
+                        ImGui::TextColored(ImVec4(1, 0.5, 0, 1), "AUTO LIKE STATUS");
+                        ImGui::Text("Enable: %s", AutoLike.Enable ? "ON" : "OFF");
+                        ImGui::Text("TargetUid: %llu", (unsigned long long)AutoLike.TargetUid);
+                        ImGui::Text("WorldID: %u", AutoLike.LogicWorldId);
+                        ImGui::Text("LikeCount: %d", AutoLike.LikeCount);
+                        ImGui::Text("Interval: %.1f s", AutoLike.Interval);
+                        ImGui::Text("Status: %s", AutoLike.StatusMsg);
+                        ImGui::Separator();
+
+                        // Debug log ring buffer
+                        ImGui::TextColored(ImVec4(1, 1, 0, 1), "DEBUG LOG (%d entries)", g_debugLogCount);
+                        ImGui::BeginChild(OBFUSCATE("##DebugLogScroll"), ImVec2(-1, 300), true);
+                        int start = (g_debugLogCount < MAX_DEBUG_LOGS) ? 0 : g_debugLogHead;
+                        for (int i = 0; i < g_debugLogCount; i++) {
+                            int idx = (start + i) % MAX_DEBUG_LOGS;
+                            ImGui::TextWrapped("[%.1f] %s", g_debugLogs[idx].timestamp, g_debugLogs[idx].msg);
+                        }
+                        if (g_debugLogCount > 0)
+                            ImGui::SetScrollHereY(1.0f);
+                        ImGui::EndChild();
+
+                        ImGui::Checkbox(OBFUSCATE("An Icon Menu"), &HideIcon);
+
+                        ImGui::EndChild();
+                    }
+
+                    ImGui::EndPopup();
+                }
+            } else {
+                ImGui::Begin(OBFUSCATE(""), 0, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoBackground);
+                ImGui::SetNextWindowSize(ImVec2(screenWidth * 0.30f, screenHeight * 0.70f), ImGuiCond_Once);
+                if (!HideIcon) {
+                    std::string fpsString = std::to_string(static_cast<int>(ImGui::GetIO().Framerate));
+                    ImGuiStyle &style = ImGui::GetStyle();
+                    ImVec4 original_button_color = style.Colors[ImGuiCol_Button];
+                    float original_frame_rounding = style.FrameRounding;
+                    ImVec4 original_text_color = style.Colors[ImGuiCol_Text];
+                    style.Colors[ImGuiCol_Button] = ImVec4(ImGui::ColorConvertU32ToFloat4(IM_COL32(255, 255, 255, 100)));
+                    style.FrameRounding = 64 * 0.5f;
+                    style.Colors[ImGuiCol_Text] = ImVec4(0.f, 0.f, 0.f, 1.f);
+                    if (ImGui::Button(fpsString.c_str(), ImVec2(64, 64))) {
+                        ShowMenu = true;
+                    }
+                    style.Colors[ImGuiCol_Button] = original_button_color;
+                    style.FrameRounding = original_frame_rounding;
+                    style.Colors[ImGuiCol_Text] = original_text_color;
+                }
+                ImGui::End();
             }
-        }else{
-            ImGui::Begin(OBFUSCATE(""), 0, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoBackground);
-            ImGui::SetNextWindowSize(ImVec2(screenWidth * 0.30f, screenHeight * 0.70f), ImGuiCond_Once);
-            if (!HideIcon) {
-            std::string fpsString = std::to_string(static_cast<int>(ImGui::GetIO().Framerate));
-            ImGuiStyle &style = ImGui::GetStyle();
-            ImVec4 original_button_color = style.Colors[ImGuiCol_Button];
-            float original_frame_rounding = style.FrameRounding;
-            ImVec4 original_text_color = style.Colors[ImGuiCol_Text];
-            style.Colors[ImGuiCol_Button] = ImVec4(ImGui::ColorConvertU32ToFloat4(IM_COL32(255, 255, 255, 100)));
-            style.FrameRounding = 64 * 0.5f;
-            style.Colors[ImGuiCol_Text] = ImVec4(0.f, 0.f, 0.f, 1.f);
-            if(ImGui::Button(fpsString.c_str(), ImVec2(64, 64))){
-                ShowMenu = true;
-            }
-            style.Colors[ImGuiCol_Button] = original_button_color;
-            style.FrameRounding = original_frame_rounding;
-            style.Colors[ImGuiCol_Text] = original_text_color;
-        }
-            ImGui::End();
-        }
-    
+
     }
     ImGui::Render();
     ImGui::EndFrame();
-    
+
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
     glGetRenderbufferParameteriv(GL_RENDERBUFFER, GL_RENDERBUFFER_WIDTH, &glWidth);
     glGetRenderbufferParameteriv(GL_RENDERBUFFER, GL_RENDERBUFFER_HEIGHT, &glHeight);
-    
+
     io.KeysDown[io.KeyMap[ImGuiKey_UpArrow]] = false;
     io.KeysDown[io.KeyMap[ImGuiKey_DownArrow]] = false;
     io.KeysDown[io.KeyMap[ImGuiKey_LeftArrow]] = false;
@@ -620,7 +393,7 @@ ImGui::Combo("##ddd", (int*)&Type, "Tắt\0Win\0Lose\0");
     io.KeysDown[io.KeyMap[ImGuiKey_Escape]] = false;
     io.KeysDown[io.KeyMap[ImGuiKey_Home]] = false;
     io.KeysDown[io.KeyMap[ImGuiKey_End]] = false;
-    
+
     return orig_eglSwapBuffers(dpy, surface);
 }
 
@@ -632,194 +405,43 @@ void *Init_Thread(void *) {
 		il2cppMap = KittyMemory::getLibraryBaseMap("libil2cpp.so");
 		sleep(1);
 	}
-	
+
     InitUnityResolve();
     TouchInput::Init();
 
-    // === ESP Core ===
-    get_camera = (void *(*)()) GetMethodOffset("UnityEngine.CoreModule.dll", "UnityEngine", "Camera", "get_main", 0);
-    if (!get_camera) get_camera = (void *(*)()) GetMethodOffset("UnityEngine.dll", "UnityEngine", "Camera", "get_main", 0);
-    worldToScreen = (Vector3 (*)(void *, Vector3)) GetMethodOffset("UnityEngine.CoreModule.dll", "UnityEngine", "Camera", "WorldToScreenPoint", 1);
-    if (!worldToScreen) worldToScreen = (Vector3 (*)(void *, Vector3)) GetMethodOffset("UnityEngine.dll", "UnityEngine", "Camera", "WorldToScreenPoint", 1);
-    get_position = (Vector3 (*)(void*)) GetMethodOffset("Project_d.dll", "Kyrios.Actor", "ActorLinker", "get_position", 0);
+    // Resolve il2cpp C API (dlsym)
+    ResolveIl2CppApi();
 
-    get_forward = (VInt3 (*)(void *)) GetMethodOffset("Project.Plugins_d.dll", "NucleusDrive.Logic", "LActorRoot", "get_forward", 0);
-    get_location = (VInt3 (*)(void *)) GetMethodOffset("Project.Plugins_d.dll", "NucleusDrive.Logic", "LActorRoot", "get_location", 0);
-    AsHero = (void* (*)(void *)) GetMethodOffset("Project.Plugins_d.dll", "NucleusDrive.Logic", "LActorRoot", "AsHero", 0);
-    GiveMyEnemyCamp = (int (*)(void *)) GetMethodOffset("Project.Plugins_d.dll", "NucleusDrive.Logic", "LActorRoot", "GiveMyEnemyCamp", 0);
-    PlayerESP.ValueComponent = (uintptr_t) GetFieldOffset("Project.Plugins_d.dll", "NucleusDrive.Logic", "LActorRoot", "ValueComponent");
+    // Resolve RVA-based method pointers for auto-like
+    fn_new_CSPkg = (new_CSPkg_t)(g_il2cpp_base + 0x37A0334);
+    fn_new_COMDT_ACNT_UNIQ = (new_COMDT_ACNT_UNIQ_t)(g_il2cpp_base + 0x3758B08);
+    fn_SendLobbyMsg = (SendLobbyMsg_t)(g_il2cpp_base + 0x78EC9C8);
 
-    IsHostPlayer = (bool (*)(void *)) GetMethodOffset("Project_d.dll", "Kyrios.Actor", "ActorLinker", "IsHostPlayer", 0);
-    get_objCamp = (int (*)(void *)) GetMethodOffset("Project_d.dll", "Kyrios.Actor", "ActorLinker", "get_objCamp", 0);
-    PlayerESP.ObjLinker = (uintptr_t) GetFieldOffset("Project_d.dll", "Kyrios.Actor", "ActorLinker", "ObjLinker");
-    get_bVisible = (bool (*)(void *)) GetMethodOffset("Project_d.dll", "Kyrios.Actor", "ActorLinker", "get_bVisible", 0);
+    AddDebugLog("RVA resolved: CSPkg=%p ACNT=%p Send=%p base=0x%llx",
+        (void*)fn_new_CSPkg, (void*)fn_new_COMDT_ACNT_UNIQ, (void*)fn_SendLobbyMsg,
+        (unsigned long long)g_il2cpp_base);
 
-    // Visibility for minions/monsters now handled by SetVisible hook cache (no extra resolve needed)
-
-    get_IsDeadState = (bool (*)(void *)) GetMethodOffset("Project.Plugins_d.dll", "NucleusDrive.Logic", "LObjWrapper", "get_IsDeadState", 0);
-    GetHeroWrapSkillData = (HeroWrapSkillData (*)(void *, int)) GetMethodOffset("Project.Plugins_d.dll", "NucleusDrive.Logic", "LHeroWrapper", "GetHeroWrapSkillData", 1);
-
-    GetAllHeros_LGameActorMgr = (List<void **> *(*)(void *)) GetMethodOffset("Project.Plugins_d.dll", "NucleusDrive.Logic", "LGameActorMgr", "GetAllHeros", 0);
-    if (!GetAllHeros_LGameActorMgr)
-        GetAllHeros_LGameActorMgr = (List<void **> *(*)(void *)) GetMethodOffset("Project.Plugins_d.dll", "NucleusDrive.Logic", "LGameActorMgr", "GetAllHeros", 1);
-    GetAllHeros_ActorManager = (List<void **> *(*)(void *)) GetMethodOffset("Project_d.dll", "Kyrios.Actor", "ActorManager", "GetAllHeros", 0);
-    if (!GetAllHeros_ActorManager)
-        GetAllHeros_ActorManager = (List<void **> *(*)(void *)) GetMethodOffset("Project_d.dll", "Kyrios.Actor", "ActorManager", "GetAllHeros", 1);
-
-    GetAllJungleMonsters_LGameActorMgr = (List<void **> *(*)(void *)) GetMethodOffset("Project.Plugins_d.dll", "NucleusDrive.Logic", "LGameActorMgr", "GetAllJungleMonsters", 0);
-    GetAllMonsters_LGameActorMgr = (List<void **> *(*)(void *)) GetMethodOffset("Project.Plugins_d.dll", "NucleusDrive.Logic", "LGameActorMgr", "GetAllMonsters", 0);
-
-    get_actorManager = (void *(*)()) GetMethodOffset("Project_d.dll", "Kyrios", "KyriosFramework", "get_actorManager", 0);
-
-    actorHP = (int (*)(void *)) GetMethodOffset("Project.Plugins_d.dll", "NucleusDrive.Logic", "ValuePropertyComponent", "get_actorHp", 0);
-    actorMaxHP = (int (*)(void *)) GetMethodOffset("Project.Plugins_d.dll", "NucleusDrive.Logic", "ValuePropertyComponent", "get_actorHpTotal", 0);
-    get_actorSoulLevel = (int (*)(void *)) GetMethodOffset("Project.Plugins_d.dll", "NucleusDrive.Logic", "ValuePropertyComponent", "get_actorSoulLevel", 0);
-
-    // Crystal HP / Force Result methods
-    AsOrgan = (void *(*)(void *)) GetMethodOffset("Project.Plugins_d.dll", "NucleusDrive.Logic", "LActorRoot", "AsOrgan", 0);
-    set_actorHp = (void (*)(void *, int)) GetMethodOffset("Project.Plugins_d.dll", "NucleusDrive.Logic", "ValuePropertyComponent", "set_actorHp", 1);
-    ForceKillCrystal_Static = (void (*)(int)) GetMethodOffset("Project_d.dll", "Assets.Scripts.GameLogic", "LobbyMsgHandler", "ForceKillCrystal", 1);
-    __android_log_print(ANDROID_LOG_INFO, "ESP_INIT", "AsOrgan=%p set_actorHp=%p ForceKillCrystal=%p",
-        (void*)AsOrgan, (void*)set_actorHp, (void*)ForceKillCrystal_Static);
-
-    // Set globals for Wupdate
-    g_ValCompOff = PlayerESP.ValueComponent;
-    g_hp = actorHP;
-    g_maxhp = actorMaxHP;
-    g_level = get_actorSoulLevel;
-
-    __android_log_print(ANDROID_LOG_INFO, "ESP_INIT", "cam=%p w2s=%p pos=%p fwd=%p loc=%p hero=%p enemy=%p host=%p camp=%p mgr=%p",
-        get_camera, worldToScreen, get_position, get_forward, get_location, AsHero, GiveMyEnemyCamp, IsHostPlayer, get_objCamp, get_actorManager);
-    __android_log_print(ANDROID_LOG_INFO, "ESP_INIT", "allH_L=%p allH_A=%p hp=%p maxhp=%p lvl=%p vis=%p skill=%p valComp=%lu objLink=%lu",
-        GetAllHeros_LGameActorMgr, GetAllHeros_ActorManager, actorHP, actorMaxHP, get_actorSoulLevel, get_bVisible, GetHeroWrapSkillData,
-        (unsigned long)PlayerESP.ValueComponent, (unsigned long)PlayerESP.ObjLinker);
-
-    // ESP update hooks - DISABLED for crash test
-    HOOKAU("Project_d.dll", "", "CameraSystem", "LateUpdate", 0, ESPUpdateResponse, _ESPUpdateResponse);
-    if (!_ESPUpdateResponse) HOOKAU("Project_d.dll", "Assets.Scripts.GameSystem", "CameraSystem", "LateUpdate", 0, ESPUpdateResponse, _ESPUpdateResponse);
-    HOOKAU("Project.Plugins_d.dll", "NucleusDrive.Logic", "LGameActorMgr", "UpdateLogic", 1, UpdateLogic_LGameActorMgr, _UpdateLogic_LGameActorMgr);
-    HOOKAU("Project.Plugins_d.dll", "NucleusDrive.Logic", "LGameActorMgr", "FightOver", 0, FightOver_LGameActorMgr, _FightOver_LGameActorMgr);
-    HOOKAU("Project.Plugins_d.dll", "NucleusDrive.Logic", "LActorRoot", "DestroyActor", 1, DestroyActor, _DestroyActor);
-
-    HOOKAU("Project.Plugins_d.dll", "NucleusDrive.Logic", "LActorRoot", "UpdateLogic", 1, Wupdate, _Wupdate);
-
-    // ActorLinker hook for camp detection
-    HOOKAU("Project_d.dll", "Kyrios.Actor", "ActorLinker", "UpdateLogic", 1, ActorLinkerUpdate, _ActorLinkerUpdate);
-    if (!_ActorLinkerUpdate) HOOKAU("Project_d.dll", "", "ActorLinker", "UpdateLogic", 1, ActorLinkerUpdate, _ActorLinkerUpdate);
-    if (!_ActorLinkerUpdate) HOOKAU("Project_d.dll", "Kyrios.Actor", "ActorLinker", "Update", 0, ActorLinkerUpdate, _ActorLinkerUpdate);
-    if (!_ActorLinkerUpdate) HOOKAU("Project_d.dll", "Kyrios.Actor", "ActorLinker", "LateUpdate", 0, ActorLinkerUpdate, _ActorLinkerUpdate);
-    __android_log_print(ANDROID_LOG_INFO, "CAMP_DETECT", "ActorLinkerUpdate hook: %p", (void*)_ActorLinkerUpdate);
-
-    // === FPS Unlock ===
+    // FPS Unlock (QoL)
     HOOKAU("Project_d.dll", "Assets.Scripts.Framework", "GameSettings", "get_Supported60FPSMode", 0, TRUE, _TRUE);
     HOOKAU("Project_d.dll", "Assets.Scripts.Framework", "GameSettings", "get_Supported90FPSMode", 0, TRUE, _TRUE);
     HOOKAU("Project_d.dll", "Assets.Scripts.Framework", "GameSettings", "get_Supported120FPSMode", 0, TRUE, _TRUE);
     HOOKAU("Project_d.dll", "Assets.Scripts.Framework", "GameSettings", "get_SupportedBoth60FPS_CameraHeight", 0, TRUE, _TRUE);
     HOOKAU("Project_d.dll", "Assets.Scripts.Framework", "GameSettings", "IsIPadDevice", 0, TRUE, _TRUE);
 
-    // === Camera ===
-    HOOKAU("Project_d.dll", "", "CameraSystem", "GetCameraHeightRateValue", 1, GetCameraHeightRateValue, _GetCameraHeightRateValue);
-    HOOKAU("Project_d.dll", "", "CameraSystem", "OnCameraHeightChanged", 0, OnCameraHeightChanged, _OnCameraHeightChanged);
+    __android_log_print(ANDROID_LOG_INFO, "AUTOLIKE", "Init complete - all methods resolved");
+    AddDebugLog("Init complete");
 
-    // === Minimap ===
-    get_MinimapScale = (Vector2 (*)(void *))GetMethodOffset("Project_d.dll", "Assets.Scripts.GameSystem", "MinimapSys", "get_MinimapScale", 0);
-    get_BigMapScale = (Vector2 (*)(void *))GetMethodOffset("Project_d.dll", "Assets.Scripts.GameSystem", "MinimapSys", "get_BigMapScale", 0);
-    get_mmFinalScreenSize = (Vector2 (*)(void *))GetMethodOffset("Project_d.dll", "Assets.Scripts.GameSystem", "MinimapSys", "get_mmFinalScreenSize", 0);
-    GetMMFianlScreenPos = (Vector2 (*)(void *))GetMethodOffset("Project_d.dll", "Assets.Scripts.GameSystem", "MinimapSys", "GetMMFianlScreenPos", 0);
-    HOOKAU("Project_d.dll", "Assets.Scripts.GameSystem", "MinimapSys", "Update", 0, MiniMapSys, _MiniMapSys);
-
-    // === Visibility ===
-    HOOKAU("Project.Plugins_d.dll", "NucleusDrive.Logic", "LVActorLinker", "SetVisible", 3, SetVisible, _SetVisible);
-
-    // === Lua dumper (writes decrypted lua bytecode from LuaLoaderImpl) ===
-    HOOKAU("Project_d.dll", "Assets.LuaAdapter", "LuaLoader", "LuaLoaderImpl", 1, LuaLoaderImpl, _LuaLoaderImpl);
-    if (!_LuaLoaderImpl)
-        HOOKAU("Assembly-CSharp.dll", "Assets.LuaAdapter", "LuaLoader", "LuaLoaderImpl", 1, LuaLoaderImpl, _LuaLoaderImpl);
-
-    // === Unlock (client-side ownership checks -> owned) ===
-    HOOKAU("Project_d.dll", "Assets.Scripts.GameSystem", "CSkinInfo", "IsOwnSkin", 2, IsOwnSkin, _IsOwnSkin);
-    HOOKAU("Project_d.dll", "Assets.Scripts.GameSystem", "CDimensionSystem", "IsOwnDimensionUseable", 2, IsOwnDimensionUseable, _IsOwnDimensionUseable);
-    HOOKAU("Project_d.dll", "Assets.Scripts.GameSystem", "CDimensionSystem", "IsOwnDimensionByUnitID", 1, IsOwnDimensionByUnitID, _IsOwnDimensionByUnitID);
-    HOOKAU("Project_d.dll", "Assets.Scripts.GameSystem", "CDimensionSystem", "IsOwnDimensionForeverByUnitID", 1, IsOwnDimensionForeverByUnitID, _IsOwnDimensionForeverByUnitID);
-    HOOKAU("Project_d.dll", "Assets.Scripts.GameSystem", "CSacredAnimalSystem", "IsOwnLingBaoUseable", 2, IsOwnLingBaoUseable, _IsOwnLingBaoUseable);
-    HOOKAU("Project_d.dll", "Assets.Scripts.GameSystem", "CSacredAnimalSystem", "IsOwnLingBaoByUnitID", 1, IsOwnLingBaoByUnitID, _IsOwnLingBaoByUnitID);
-    HOOKAU("Project_d.dll", "Assets.Scripts.GameSystem", "CSacredAnimalSystem", "IsOwnLingBaoBySuitID", 2, IsOwnLingBaoBySuitID, _IsOwnLingBaoBySuitID);
-    HOOKAU("Project_d.dll", "Assets.Scripts.GameSystem", "CRoleInfo", "get_GameVipLevel", 0, get_GameVipLevel, _get_GameVipLevel);
-    HOOKAU("Project_d.dll", "Assets.Scripts.GameSystem", "HeadIconSys", "HasOwnHeadIcon", 1, HasOwnHeadIcon, _HasOwnHeadIcon);
-    HOOKAU("Project_d.dll", "Assets.Scripts.GameSystem", "HeadPendantSys", "IsHeadPendantLocked", 2, IsHeadPendantLocked, _IsHeadPendantLocked);
-
-    // === modskinfull.h port: skin in REAL BATTLE (client-visual) ===
-    g_off_dwHeroID = (uintptr_t)GetFieldOffset("AovTdr.dll", "CSProtocol", "COMDT_HERO_COMMON_INFO", "dwHeroID");
-    g_off_wSkinID  = (uintptr_t)GetFieldOffset("AovTdr.dll", "CSProtocol", "COMDT_HERO_COMMON_INFO", "wSkinID");
-    HOOKAU("AovTdr.dll", "CSProtocol", "COMDT_HERO_COMMON_INFO", "unpack", 2, HeroInfoUnpack, _HeroInfoUnpack);
-    HOOKAU("Project_d.dll", "Assets.Scripts.GameSystem", "CRoleInfo", "IsCanUseSkin", 2, IsCanUseSkin, _IsCanUseSkin);
-    HOOKAU("Project_d.dll", "Assets.Scripts.GameSystem", "CRoleInfo", "IsHaveHeroSkin", 3, IsHaveHeroSkin, _IsHaveHeroSkin);
-    HOOKAU("Project_d.dll", "Assets.Scripts.GameSystem", "CRoleInfo", "GetHeroWearSkinId", 1, GetHeroWearSkinId, _GetHeroWearSkinId);
-    HOOKAU("Project_d.dll", "Assets.Scripts.GameSystem", "CRoleInfo", "IsOwnAutoChessPlayerSkin", 2, IsOwnAutoChessPlayerSkin, _IsOwnAutoChessPlayerSkin);
-
-    // === Spam Ping Map ===
-    g_SendSignalBtnPos = (SendSignalBtnPos_t)GetMethodOffset("Project_d.dll", "Assets.Scripts.GameSystem", "SignalPanel", "SendCommand_SignalBtn_Position", 5);
-    if (!g_SendSignalBtnPos)
-        g_SendSignalBtnPos = (SendSignalBtnPos_t)GetMethodOffset("Project_d.dll", "Assets.Scripts.GameSystem", "SignalPanel", "SendCommand_SignalBtn_Position", 3);
-    if (!g_SendSignalBtnPos)
-        g_SendSignalBtnPos = (SendSignalBtnPos_t)GetMethodOffset("Project_d.dll", "", "SignalPanel", "SendCommand_SignalBtn_Position", 5);
-    if (!g_SendSignalBtnPos)
-        g_SendSignalBtnPos = (SendSignalBtnPos_t)GetMethodOffset("Project_d.dll", "", "SignalPanel", "SendCommand_SignalBtn_Position", 3);
-    __android_log_print(ANDROID_LOG_INFO, "SPAM_PING", "SendCommand_SignalBtn_Position=%p", (void*)g_SendSignalBtnPos);
-    srand(time(nullptr));
-
-    // Find LVActorLinker field pointing to LActorRoot
-    {
-        const char *fieldNames[] = {"actorRoot", "m_actorRoot", "ActorRoot", "m_ActorRoot",
-            "owner", "m_owner", "Actor", "m_actor", "logicActor", "m_logicActor",
-            "actorPtr", "m_actorPtr", "root", "m_root", "lActorRoot", "m_lActorRoot",
-            "actorObj", "m_actorObj", "hostActor", "wrapper", "m_wrapper",
-            "objActor", "m_objActor", "actorLogic", "m_actorLogic",
-            "LActorRoot", "m_LActorRoot", "actor", "objRoot", "m_objRoot", nullptr};
-        for (int i = 0; fieldNames[i]; i++) {
-            uintptr_t off = (uintptr_t)GetFieldOffset("Project.Plugins_d.dll", "NucleusDrive.Logic", "LVActorLinker", fieldNames[i]);
-            if (off > 0 && off < 0x200) {
-                __android_log_print(ANDROID_LOG_INFO, "FIELD_DUMP", "FOUND: LVActorLinker.%s = 0x%lx", fieldNames[i], (unsigned long)off);
-            }
-        }
-        // Also try on parent class LObjLinker
-        for (int i = 0; fieldNames[i]; i++) {
-            uintptr_t off = (uintptr_t)GetFieldOffset("Project.Plugins_d.dll", "NucleusDrive.Logic", "LObjLinker", fieldNames[i]);
-            if (off > 0 && off < 0x200) {
-                __android_log_print(ANDROID_LOG_INFO, "FIELD_DUMP", "FOUND: LObjLinker.%s = 0x%lx", fieldNames[i], (unsigned long)off);
-            }
-        }
-    }
-
-    // === Force Win/Lose Result Hooks ===
-    // Hook packet serialization: COMDT_MULTI_GAME_PARAM.pack() in AovTdr.dll
-    HOOKAU("AovTdr.dll", "CSProtocol", "COMDT_MULTI_GAME_PARAM", "pack", 2, COMDT_MULTI_GAME_PARAM_pack_Hook, _COMDT_MULTI_GAME_PARAM_pack);
-    // Hook stored battle result setter
-    HOOKAU("Project_d.dll", "Kyrios.Statistic", "VBattleStatistic", "set_iBattleResult", 1, set_iBattleResult_Hook, _set_iBattleResult);
-    // Hook game over event processing
-    HOOKAU("Project_d.dll", "Assets.Scripts.GameLogic", "LobbyMsgHandler", "OnGameOverEventMainThread", 2, OnGameOverEventMainThread_Hook, _OnGameOverEventMainThread);
-    HOOKAU("Project_d.dll", "Assets.Scripts.GameLogic", "LobbyMsgHandler", "SendBattleResult", 1, SendBattleResult_Hook, _SendBattleResult);
-    HOOKAU("Project_d.dll", "Assets.Scripts.GameLogic", "LobbyMsgHandler", "HandleGameSettle", 4, HandleGameSettle_Hook, _HandleGameSettle);
-    __android_log_print(ANDROID_LOG_INFO, "FORCE_RESULT",
-        "Hooks: Pack=%p SetResult=%p GameOver=%p SendResult=%p Settle=%p",
-        (void*)_COMDT_MULTI_GAME_PARAM_pack, (void*)_set_iBattleResult,
-        (void*)_OnGameOverEventMainThread, (void*)_SendBattleResult, (void*)_HandleGameSettle);
-
-    __android_log_print(ANDROID_LOG_INFO, "ESP_INIT", "All hooks installed");
-    
-    
-    
     return nullptr;
 }
 
 
-JNIEXPORT jint JNICALL 
+JNIEXPORT jint JNICALL
 JNI_OnLoad(JavaVM *vm, void * reserved) {
 	jvm = vm;
 	JNIEnv *env;
-	
+
 	vm->GetEnv((void **) &env, JNI_VERSION_1_6);
-	
+
     Tools::Hook((void *) DobbySymbolResolver(OBFUSCATE("/system/lib/libandroid.so"), OBFUSCATE("ANativeWindow_getWidth")), (void *) _ANativeWindow_getWidth, (void **) &orig_ANativeWindow_getWidth);
     Tools::Hook((void *) DobbySymbolResolver(OBFUSCATE("/system/lib/libandroid.so"), OBFUSCATE("ANativeWindow_getHeight")), (void *) _ANativeWindow_getHeight, (void **) &orig_ANativeWindow_getHeight);
     Tools::Hook((void *) DobbySymbolResolver(OBFUSCATE("/system/lib/libEGL.so"), OBFUSCATE("eglSwapBuffers")), (void *) _eglSwapBuffers, (void **) &orig_eglSwapBuffers);
